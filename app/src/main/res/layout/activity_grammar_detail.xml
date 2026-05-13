@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  6.8 FIX: bọc ScrollView trong FrameLayout để hiển thị ProgressBar OVERLAY
+  ở giữa màn hình thay vì ở cuối ScrollView.
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/lingua_light">
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <androidx.cardview.widget.CardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="3dp"
+                android:layout_marginBottom="12dp">
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="18dp">
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+                        <TextView android:id="@+id/tvTitle"
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
+                            android:layout_height="wrap_content"
+                            android:textSize="22sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/lingua_dark"/>
+                        <ImageButton android:id="@+id/btnFavorite"
+                            android:layout_width="40dp"
+                            android:layout_height="40dp"
+                            android:src="@android:drawable/btn_star_big_off"
+                            android:background="@android:color/transparent"
+                            android:tint="@color/lingua_orange"
+                            android:contentDescription="Yêu thích"/>
+                    </LinearLayout>
+                    <TextView android:id="@+id/tvStructure"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textSize="16sp"
+                        android:textColor="@color/lingua_blue"
+                        android:fontFamily="serif"
+                        android:layout_marginTop="6dp"/>
+                    <TextView android:id="@+id/tvLevel"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textSize="12sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/lingua_orange"
+                        android:layout_marginTop="2dp"/>
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="📚 Ý nghĩa"
+                android:textStyle="bold"
+                android:textSize="16sp"
+                android:layout_marginBottom="6dp"/>
+            <TextView android:id="@+id/tvMeaning"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textSize="15sp"
+                android:textColor="@color/lingua_dark"
+                android:background="@color/white"
+                android:padding="12dp"
+                android:layout_marginBottom="12dp"/>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="📝 Giải thích"
+                android:textStyle="bold"
+                android:textSize="16sp"
+                android:layout_marginBottom="6dp"/>
+            <TextView android:id="@+id/tvExplanation"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textSize="15sp"
+                android:textColor="@color/lingua_dark"
+                android:background="@color/white"
+                android:padding="12dp"
+                android:layout_marginBottom="12dp"/>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="✨ Ví dụ"
+                android:textStyle="bold"
+                android:textSize="16sp"
+                android:layout_marginBottom="6dp"/>
+            <LinearLayout android:id="@+id/layoutExamples"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"/>
+
+            <!-- 3.7 FIX: "Luyện tập ngữ pháp này" CTA — opens PracticeActivity
+                 filtered by grammarId so the user can drill the structure they
+                 just read. Previously the screen had no path to practice. -->
+            <Button android:id="@+id/btnPracticeGrammar"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="🎯 Luyện tập ngữ pháp này"
+                android:backgroundTint="@color/lingua_green"
+                android:textColor="@color/white"
+                android:textStyle="bold"/>
+        </LinearLayout>
+    </ScrollView>
+
+    <!-- 6.8 FIX: ProgressBar overlay ở giữa màn hình (luôn nhìn thấy khi loading). -->
+    <ProgressBar android:id="@+id/progressBar"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:visibility="gone"/>
+</FrameLayout>

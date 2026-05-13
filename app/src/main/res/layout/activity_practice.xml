@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/lingua_light">
+
+    <ProgressBar android:id="@+id/progressBarLesson" android:layout_width="match_parent" android:layout_height="8dp"
+        style="?android:attr/progressBarStyleHorizontal" android:max="100" android:progress="0"
+        android:progressTint="@color/lingua_green"/>
+
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="horizontal" android:padding="8dp" android:gravity="center_vertical">
+        <TextView android:id="@+id/tvProgress" android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:textColor="@color/lingua_gray" android:gravity="center"/>
+        <TextView android:id="@+id/tvHearts" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:textColor="@color/lingua_red" android:textStyle="bold" android:textSize="14sp"
+            android:layout_marginEnd="10dp" android:text="❤️ …"/>
+        <TextView android:id="@+id/tvScore" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:textColor="@color/lingua_orange" android:textStyle="bold" android:textSize="14sp"/>
+    </LinearLayout>
+
+    <ProgressBar android:id="@+id/progressBar" android:layout_width="wrap_content"
+        android:layout_height="wrap_content" android:layout_gravity="center" android:visibility="gone"/>
+
+    <ScrollView android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="vertical" android:padding="16dp">
+
+            <androidx.cardview.widget.CardView android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginBottom="16dp" android:elevation="4dp"
+                app:cardCornerRadius="12dp">
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:orientation="vertical" android:padding="20dp">
+                    <Button android:id="@+id/btnListen" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="@string/listen" android:backgroundTint="@color/lingua_blue"
+                        android:textColor="@color/white" android:layout_marginBottom="12dp" android:visibility="gone"/>
+                    <TextView android:id="@+id/tvQuestion" android:layout_width="match_parent"
+                        android:layout_height="wrap_content" android:textSize="20sp" android:textColor="@color/lingua_dark"
+                        android:text="@string/loading"/>
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
+            <!-- Fill blank input -->
+            <LinearLayout android:id="@+id/layoutFillBlank" android:layout_width="match_parent"
+                android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
+                <EditText android:id="@+id/etFillBlank" android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:hint="@string/your_answer" android:padding="14dp" android:textSize="18sp"
+                    android:background="@drawable/edit_text_bg" android:layout_marginBottom="8dp"/>
+            </LinearLayout>
+
+            <!-- Multi choice buttons -->
+            <LinearLayout android:id="@+id/layoutMultiChoice" android:layout_width="match_parent"
+                android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone"/>
+
+            <!-- Match layout -->
+            <LinearLayout android:id="@+id/layoutMatch" android:layout_width="match_parent"
+                android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone"/>
+
+            <!-- Sentence order layout -->
+            <LinearLayout android:id="@+id/layoutSentenceOrder" android:layout_width="match_parent"
+                android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone"/>
+
+            <!-- Hint -->
+            <TextView android:id="@+id/tvHint" android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:padding="12dp" android:background="#FFF9C4" android:textColor="@color/lingua_dark"
+                android:visibility="gone" android:layout_marginTop="8dp"/>
+
+            <!-- Feedback -->
+            <TextView android:id="@+id/tvFeedback" android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:padding="16dp" android:textSize="16sp" android:textStyle="bold"
+                android:visibility="gone" android:layout_marginTop="8dp"/>
+        </LinearLayout>
+    </ScrollView>
+
+    <!-- Bottom buttons -->
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:padding="12dp" android:background="@color/white" android:elevation="8dp"
+        android:orientation="horizontal">
+
+        <Button android:id="@+id/btnHint" android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:text="@string/hint" android:backgroundTint="#FFF9C4"
+            android:textColor="@color/lingua_dark" android:layout_marginEnd="4dp"/>
+
+        <Button android:id="@+id/btnSubmit" android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="2" android:text="KIỂM TRA ✓"
+            android:backgroundTint="@color/lingua_green" android:textColor="@color/white"
+            android:textStyle="bold"/>
+
+        <Button android:id="@+id/btnNext" android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="2" android:text="TIẾP THEO →"
+            android:backgroundTint="@color/lingua_blue" android:textColor="@color/white"
+            android:visibility="gone" android:layout_marginStart="4dp"/>
+    </LinearLayout>
+</LinearLayout>

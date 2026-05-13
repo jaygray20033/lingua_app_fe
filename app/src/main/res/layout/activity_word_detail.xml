@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  6.7 FIX: bọc ScrollView trong FrameLayout để hiển thị ProgressBar OVERLAY
+  ở giữa màn hình thay vì ở cuối ScrollView (user phải scroll xuống mới thấy
+  loading indicator).
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/lingua_light">
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <androidx.cardview.widget.CardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:cardCornerRadius="14dp"
+                app:cardElevation="3dp"
+                android:layout_marginBottom="12dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="20dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical">
+
+                            <TextView android:id="@+id/tvWord"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:textSize="36sp"
+                                android:textStyle="bold"
+                                android:textColor="@color/lingua_dark"/>
+
+                            <TextView android:id="@+id/tvReading"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:textSize="18sp"
+                                android:textColor="@color/lingua_blue"/>
+
+                            <TextView android:id="@+id/tvLevel"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:textSize="12sp"
+                                android:textStyle="bold"
+                                android:textColor="@color/lingua_green"
+                                android:layout_marginTop="4dp"/>
+                        </LinearLayout>
+
+                        <ImageButton android:id="@+id/btnFavorite"
+                            android:layout_width="44dp"
+                            android:layout_height="44dp"
+                            android:src="@android:drawable/btn_star_big_off"
+                            android:background="@android:color/transparent"
+                            android:tint="@color/lingua_orange"
+                            android:contentDescription="Yêu thích"/>
+
+                        <ImageButton android:id="@+id/btnSpeak"
+                            android:layout_width="44dp"
+                            android:layout_height="44dp"
+                            android:src="@android:drawable/ic_btn_speak_now"
+                            android:background="@android:color/transparent"
+                            android:tint="@color/lingua_blue"
+                            android:contentDescription="Phát âm"/>
+                    </LinearLayout>
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
+            <!-- 3.1 FIX: StrokeOrderView (Canvas animation) cho Kanji/Hán tự.
+                 GONE mặc định, sẽ visible khi WordDetailActivity phát hiện
+                 là ký tự CJK và load /api/words/character/{char}. -->
+            <com.lingua.app.views.StrokeOrderView
+                android:id="@+id/strokeOrderView"
+                android:layout_width="match_parent"
+                android:layout_height="240dp"
+                android:layout_marginBottom="12dp"
+                android:background="@color/white"
+                android:visibility="gone"/>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="📖 Nghĩa"
+                android:textStyle="bold"
+                android:textSize="16sp"
+                android:textColor="@color/lingua_dark"
+                android:layout_marginBottom="6dp"/>
+
+            <TextView android:id="@+id/tvMeanings"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textSize="15sp"
+                android:textColor="@color/lingua_dark"
+                android:background="@color/white"
+                android:padding="12dp"
+                android:layout_marginBottom="12dp"/>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="✨ Câu ví dụ"
+                android:textStyle="bold"
+                android:textSize="16sp"
+                android:textColor="@color/lingua_dark"
+                android:layout_marginBottom="6dp"/>
+
+            <LinearLayout android:id="@+id/layoutExamples"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"/>
+
+            <TextView android:id="@+id/tvEmpty"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:padding="16dp"
+                android:textColor="@color/lingua_gray"
+                android:text="Chưa có dữ liệu"
+                android:visibility="gone"/>
+        </LinearLayout>
+    </ScrollView>
+
+    <!-- 6.7 FIX: ProgressBar overlay ở giữa màn hình (luôn nhìn thấy khi loading). -->
+    <ProgressBar android:id="@+id/progressBar"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:visibility="gone"/>
+</FrameLayout>

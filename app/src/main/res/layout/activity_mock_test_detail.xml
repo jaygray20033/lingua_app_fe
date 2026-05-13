@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/lingua_light">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:padding="12dp"
+        android:background="@color/lingua_orange">
+        <TextView android:id="@+id/tvProgress"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:textColor="@color/white"
+            android:textStyle="bold"
+            android:text="Câu 1/0"/>
+        <TextView android:id="@+id/tvTimer"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="@color/white"
+            android:textStyle="bold"
+            android:text="⏱ 00:00"/>
+    </LinearLayout>
+
+    <ProgressBar android:id="@+id/progressBarTest"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="match_parent"
+        android:layout_height="6dp"
+        android:max="100"
+        android:progress="0"
+        android:progressTint="@color/lingua_orange"/>
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:padding="14dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <Button android:id="@+id/btnPlayAudio"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🔊 Nghe"
+                android:backgroundTint="@color/lingua_blue"
+                android:textColor="@color/white"
+                android:visibility="gone"
+                android:layout_marginBottom="8dp"/>
+
+            <TextView android:id="@+id/tvQuestion"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textSize="17sp"
+                android:textColor="@color/lingua_dark"
+                android:background="@color/white"
+                android:padding="14dp"
+                android:layout_marginBottom="12dp"/>
+
+            <LinearLayout android:id="@+id/layoutOptions"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"/>
+
+            <EditText android:id="@+id/etAnswer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="Câu trả lời..."
+                android:padding="10dp"
+                android:background="@drawable/edit_text_bg"
+                android:visibility="gone"/>
+        </LinearLayout>
+    </ScrollView>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:padding="12dp"
+        android:background="@color/white">
+        <Button android:id="@+id/btnPrev"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:text="◀ Trước"
+            android:backgroundTint="@color/lingua_gray"
+            android:textColor="@color/white"
+            android:layout_marginEnd="6dp"/>
+        <Button android:id="@+id/btnNext"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:text="Tiếp ▶"
+            android:backgroundTint="@color/lingua_blue"
+            android:textColor="@color/white"
+            android:layout_marginStart="6dp"/>
+        <Button android:id="@+id/btnSubmit"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:text="✅ Nộp bài"
+            android:backgroundTint="@color/lingua_green"
+            android:textColor="@color/white"
+            android:layout_marginStart="6dp"/>
+    </LinearLayout>
+</LinearLayout>

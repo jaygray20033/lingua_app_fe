@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="24dp"
+    android:background="@color/lingua_light">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="📊 Bạn đã biết gì về ngôn ngữ này?"
+        android:textSize="22sp"
+        android:textStyle="bold"
+        android:textColor="@color/lingua_dark"
+        android:layout_marginTop="32dp"
+        android:layout_marginBottom="8dp"/>
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Chọn trình độ hiện tại để chúng tôi sắp xếp lộ trình phù hợp. Bạn có thể làm bài kiểm tra trình độ ngắn (tuỳ chọn)."
+        android:textSize="14sp"
+        android:textColor="@color/lingua_gray"
+        android:layout_marginBottom="24dp"/>
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/recyclerLevels"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"/>
+
+    <Button
+        android:id="@+id/btnPlacementTest"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:text="📝 Làm bài kiểm tra trình độ (5 phút)"
+        android:textSize="14sp"
+        android:textColor="@color/lingua_blue"
+        android:backgroundTint="@android:color/white"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="8dp"/>
+
+    <!-- 6.1 FIX: thêm hàng nút Quay lại + Hoàn thành. -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/btnBack"
+            android:layout_width="0dp"
+            android:layout_weight="0.35"
+            android:layout_height="56dp"
+            android:text="◀ Quay lại"
+            android:textSize="14sp"
+            android:textColor="@color/lingua_green"
+            android:backgroundTint="@android:color/white"
+            android:layout_marginEnd="8dp"/>
+
+        <Button
+            android:id="@+id/btnFinish"
+            android:layout_width="0dp"
+            android:layout_weight="0.65"
+            android:layout_height="56dp"
+            android:text="🎉 Hoàn thành"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textColor="@android:color/white"
+            android:backgroundTint="@color/lingua_green"
+            android:enabled="false"/>
+    </LinearLayout>
+</LinearLayout>

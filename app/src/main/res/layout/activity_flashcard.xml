@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/lingua_light"
+    android:padding="16dp">
+
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="horizontal" android:layout_marginBottom="8dp">
+        <TextView android:id="@+id/tvProgress" android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:textSize="16sp" android:textColor="@color/lingua_gray" android:text="0 / 0"/>
+        <TextView android:id="@+id/tvState" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:textSize="14sp" android:textStyle="bold" android:textColor="@color/lingua_blue"/>
+    </LinearLayout>
+
+    <!-- Session statistics: New / Learning / Review -->
+    <TextView android:id="@+id/tvSessionStats"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="13sp"
+        android:textColor="@color/lingua_dark"
+        android:gravity="center"
+        android:padding="6dp"
+        android:background="@color/white"
+        android:layout_marginBottom="6dp"
+        android:text="🟦 New 0   🟧 Learning 0   🟩 Review 0"/>
+
+    <ProgressBar android:id="@+id/progressBar" android:layout_width="wrap_content"
+        android:layout_height="wrap_content" android:visibility="gone" android:layout_gravity="center_horizontal"/>
+
+    <!-- Flashcard -->
+    <FrameLayout android:id="@+id/layoutCard" android:layout_width="match_parent" android:layout_height="0dp"
+        android:layout_weight="1" android:layout_marginBottom="16dp">
+
+        <!-- Front -->
+        <androidx.cardview.widget.CardView android:id="@+id/cardFront" android:layout_width="match_parent"
+            android:layout_height="match_parent" xmlns:app="http://schemas.android.com/apk/res-auto"
+            app:cardCornerRadius="16dp" app:cardElevation="8dp" android:layout_margin="8dp">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent"
+                android:gravity="center" android:orientation="vertical" android:background="#FFFDE7">
+                <TextView android:id="@+id/tvFront" android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" android:textSize="36sp" android:textStyle="bold"
+                    android:textColor="@color/lingua_dark" android:gravity="center"
+                    android:text="Đang tải…"/>
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="Nhấn để lật 👆" android:textColor="@color/lingua_gray"
+                    android:textSize="14sp" android:layout_marginTop="16dp"/>
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <!-- Back -->
+        <androidx.cardview.widget.CardView android:id="@+id/cardBack" android:layout_width="match_parent"
+            android:layout_height="match_parent" xmlns:app="http://schemas.android.com/apk/res-auto"
+            app:cardCornerRadius="16dp" app:cardElevation="8dp" android:layout_margin="8dp"
+            android:visibility="gone">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent"
+                android:gravity="center" android:orientation="vertical" android:background="#E8F5E9">
+                <TextView android:id="@+id/tvBack" android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" android:textSize="28sp"
+                    android:textColor="@color/lingua_dark" android:gravity="center"/>
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+    </FrameLayout>
+
+    <TextView android:id="@+id/tvNextReview" android:layout_width="match_parent"
+        android:layout_height="wrap_content" android:textSize="14sp" android:textColor="@color/lingua_gray"
+        android:gravity="center" android:layout_marginBottom="8dp" android:visibility="gone"/>
+
+    <!-- Rating Buttons -->
+    <!-- 6.5 FIX: tăng textSize từ 11sp → 13sp và minHeight 56dp để đạt touch
+         target tối thiểu Material (48dp+). Trước đây 11sp + button vừa text
+         khiến rất khó bấm chính xác trên màn hình nhỏ. -->
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="horizontal" android:weightSum="4">
+
+        <Button android:id="@+id/btnAgain" android:layout_width="0dp" android:layout_height="wrap_content"
+            android:minHeight="56dp"
+            android:layout_weight="1" android:text="😰\nAGAIN" android:backgroundTint="@color/lingua_red"
+            android:textColor="@color/white" android:textSize="13sp" android:layout_margin="4dp" android:visibility="gone"/>
+
+        <Button android:id="@+id/btnHard" android:layout_width="0dp" android:layout_height="wrap_content"
+            android:minHeight="56dp"
+            android:layout_weight="1" android:text="😅\nHARD" android:backgroundTint="@color/lingua_orange"
+            android:textColor="@color/white" android:textSize="13sp" android:layout_margin="4dp" android:visibility="gone"/>
+
+        <Button android:id="@+id/btnGood" android:layout_width="0dp" android:layout_height="wrap_content"
+            android:minHeight="56dp"
+            android:layout_weight="1" android:text="😊\nGOOD" android:backgroundTint="@color/lingua_blue"
+            android:textColor="@color/white" android:textSize="13sp" android:layout_margin="4dp" android:visibility="gone"/>
+
+        <Button android:id="@+id/btnEasy" android:layout_width="0dp" android:layout_height="wrap_content"
+            android:minHeight="56dp"
+            android:layout_weight="1" android:text="😎\nEASY" android:backgroundTint="@color/lingua_green"
+            android:textColor="@color/white" android:textSize="13sp" android:layout_margin="4dp" android:visibility="gone"/>
+    </LinearLayout>
+</LinearLayout>

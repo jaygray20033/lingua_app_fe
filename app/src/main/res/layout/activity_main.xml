@@ -1,0 +1,331 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/lingua_light">
+
+    <!-- Header -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/lingua_green"
+        android:padding="16dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <!-- 6.3 FIX: header có 5 items, trên màn hình 360dp sẽ bị tràn.
+             Đã chia 2 hàng: hàng 1 = userName (full width), hàng 2 = stats
+             với layout_weight phân đều. Mỗi TextView dùng ellipsize=end +
+             maxLines=1 để không bị tràn. -->
+        <TextView android:id="@+id/tvUserName"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="@color/white"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:text="👤 Người dùng"/>
+    </LinearLayout>
+
+    <!-- 6.3 FIX: hàng stats riêng biệt để tránh tràn header trên màn hình nhỏ. -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/lingua_green"
+        android:paddingHorizontal="16dp"
+        android:paddingBottom="12dp"
+        android:orientation="horizontal"
+        android:weightSum="4">
+
+        <TextView android:id="@+id/tvHearts"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:textColor="@color/white"
+            android:textSize="13sp"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:text="❤️ 5"/>
+
+        <TextView android:id="@+id/tvStreak"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:textColor="@color/white"
+            android:textSize="13sp"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:text="🔥 0"/>
+
+        <TextView android:id="@+id/tvXp"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:textColor="@color/white"
+            android:textSize="13sp"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:text="⚡ 0 XP"/>
+
+        <TextView android:id="@+id/tvLevel"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:textColor="@color/white"
+            android:textSize="13sp"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:gravity="end"
+            android:text="Lv.1"/>
+    </LinearLayout>
+
+    <!-- Main scroll content -->
+    <!-- 6.3 FIX: bọc ScrollView trong SwipeRefreshLayout để user pull-to-refresh. -->
+    <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+        android:id="@+id/swipeRefresh"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="14dp">
+
+            <!-- Daily XP goal progress -->
+            <androidx.cardview.widget.CardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="12dp"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="3dp">
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="14dp">
+
+                    <TextView android:id="@+id/tvDailyGoalLabel"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="🎯 Mục tiêu hôm nay"
+                        android:textSize="15sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/lingua_dark"/>
+
+                    <ProgressBar
+                        android:id="@+id/progressDailyGoal"
+                        style="?android:attr/progressBarStyleHorizontal"
+                        android:layout_width="match_parent"
+                        android:layout_height="10dp"
+                        android:max="100"
+                        android:progress="0"
+                        android:layout_marginTop="6dp"
+                        android:progressTint="@color/lingua_orange"/>
+
+                    <TextView android:id="@+id/tvDailyGoalText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textSize="12sp"
+                        android:textColor="@color/lingua_gray"
+                        android:layout_marginTop="4dp"
+                        android:text="0 / 50 XP"/>
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
+            <!-- Continue learning -->
+            <!-- 6.3 FIX: thêm maxLines=2 + ellipsize=end để tên bài dài không
+                 đẩy layout xuống / bị cắt xấu. -->
+            <Button android:id="@+id/btnContinue"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="12dp"
+                android:text="▶ Tiếp tục học"
+                android:backgroundTint="@color/lingua_green"
+                android:textColor="@color/white"
+                android:textStyle="bold"
+                android:maxLines="2"
+                android:ellipsize="end"
+                android:visibility="gone"/>
+
+            <!-- My courses -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="📚 Khoá học của tôi"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:textColor="@color/lingua_dark"
+                android:layout_marginTop="6dp"
+                android:layout_marginBottom="6dp"/>
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/recyclerEnrollments"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:nestedScrollingEnabled="false"
+                app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"/>
+
+            <TextView android:id="@+id/tvEnrollmentsEmpty"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:padding="16dp"
+                android:textColor="@color/lingua_gray"
+                android:text="Bạn chưa ghi danh khoá học nào.\nNhấn 📚 Khám phá để bắt đầu!"
+                android:visibility="gone"/>
+
+            <Button android:id="@+id/btnBrowseCourses"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:layout_marginBottom="12dp"
+                android:text="📚 Khám phá khoá học"
+                android:backgroundTint="@color/lingua_blue"
+                android:textColor="@color/white"/>
+
+            <!-- 1.3 FIX: Review card — surfaces /lessons/review-queue so users
+                 can re-do lessons with low scores or that are due for spaced
+                 repetition. Previously this endpoint had no UI entry point. -->
+            <androidx.cardview.widget.CardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="12dp"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="3dp">
+                <LinearLayout
+                    android:id="@+id/cardReview"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:padding="14dp"
+                    android:background="?android:attr/selectableItemBackground"
+                    android:clickable="true"
+                    android:focusable="true">
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="🔁"
+                        android:textSize="28sp"
+                        android:layout_marginEnd="12dp"/>
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Ôn tập"
+                            android:textSize="16sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/lingua_dark"/>
+                        <TextView
+                            android:id="@+id/tvReviewSubtitle"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Đang kiểm tra hàng đợi ôn tập…"
+                            android:textSize="13sp"
+                            android:textColor="@color/lingua_gray"/>
+                    </LinearLayout>
+                    <TextView
+                        android:id="@+id/tvReviewBadge"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="0"
+                        android:textColor="@color/white"
+                        android:textStyle="bold"
+                        android:textSize="14sp"
+                        android:paddingStart="10dp"
+                        android:paddingEnd="10dp"
+                        android:paddingTop="4dp"
+                        android:paddingBottom="4dp"
+                        android:background="@color/lingua_orange"
+                        android:visibility="gone"/>
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
+            <!-- Daily quests preview -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🎯 Nhiệm vụ hôm nay"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:textColor="@color/lingua_dark"
+                android:layout_marginBottom="6dp"/>
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/recyclerQuestPreview"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:nestedScrollingEnabled="false"
+                app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"/>
+
+            <!-- Shortcuts -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginTop="12dp">
+                <Button android:id="@+id/btnGrammar"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="📖 Ngữ pháp"
+                    android:backgroundTint="@color/lingua_yellow"
+                    android:textColor="@color/lingua_dark"
+                    android:layout_marginEnd="4dp"/>
+                <Button android:id="@+id/btnMockTest"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="📝 Thi thử"
+                    android:backgroundTint="@color/lingua_orange"
+                    android:textColor="@color/white"
+                    android:layout_marginStart="4dp"/>
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginTop="6dp">
+                <Button android:id="@+id/btnFavorites"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="🔖 Yêu thích"
+                    android:backgroundTint="@color/lingua_red"
+                    android:textColor="@color/white"
+                    android:layout_marginEnd="4dp"/>
+                <Button android:id="@+id/btnShadowing"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="🎙 Shadowing"
+                    android:backgroundTint="@color/lingua_blue"
+                    android:textColor="@color/white"
+                    android:layout_marginStart="4dp"/>
+            </LinearLayout>
+        </LinearLayout>
+    </ScrollView>
+    </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+
+    <!-- Bottom Navigation -->
+    <com.google.android.material.bottomnavigation.BottomNavigationView
+        android:id="@+id/bottomNavigation"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/white"
+        app:menu="@menu/bottom_nav_menu"/>
+</LinearLayout>

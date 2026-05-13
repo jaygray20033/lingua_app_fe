@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/lingua_light">
+
+    <!-- Language Tabs -->
+    <com.google.android.material.tabs.TabLayout
+        android:id="@+id/tabLanguage"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/white"
+        app:tabMode="fixed"
+        app:tabGravity="fill"
+        app:tabIndicatorColor="@color/lingua_green"
+        app:tabSelectedTextColor="@color/lingua_green"
+        app:tabTextColor="@color/lingua_gray"/>
+
+    <!-- Level spinner + search -->
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="horizontal" android:padding="12dp" android:background="@color/white"
+        android:gravity="center_vertical"
+        android:elevation="4dp">
+
+        <Spinner android:id="@+id/spinnerLevel"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="0.4"/>
+
+        <FrameLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="0.6"
+            android:layout_marginStart="8dp">
+
+            <EditText android:id="@+id/etSearch"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="@string/search_hint"
+                android:padding="8dp"
+                android:paddingEnd="36dp"
+                android:background="@drawable/edit_text_bg"/>
+
+            <!-- 6.6 FIX: nút clear (X) bên trong EditText. Visible khi etSearch
+                 có text, ẩn khi trống. Xử lý trong VocabularyActivity. -->
+            <ImageButton android:id="@+id/btnClearSearch"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:layout_gravity="end|center_vertical"
+                android:src="@android:drawable/ic_menu_close_clear_cancel"
+                android:background="@android:color/transparent"
+                android:visibility="gone"
+                android:contentDescription="Xoá tìm kiếm"/>
+        </FrameLayout>
+    </LinearLayout>
+
+    <ProgressBar android:id="@+id/progressBar" android:layout_width="wrap_content"
+        android:layout_height="wrap_content" android:layout_gravity="center"
+        android:layout_marginTop="16dp" android:visibility="gone"/>
+
+    <TextView android:id="@+id/tvEmpty"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/empty_words"
+        android:gravity="center"
+        android:padding="32dp"
+        android:visibility="gone"
+        android:textColor="@color/lingua_gray"/>
+
+    <!-- 6.6 FIX: bọc RecyclerView trong FrameLayout để FAB scroll-to-top
+         nằm overlay góc dưới phải. -->
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/recyclerView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:padding="8dp"
+            app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"/>
+
+        <!-- 6.6 FIX: FAB scroll-to-top, hiển thị khi list cuộn xuống > 5 items. -->
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/fabScrollTop"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom|end"
+            android:layout_margin="16dp"
+            android:src="@android:drawable/arrow_up_float"
+            android:contentDescription="Về đầu trang"
+            android:visibility="gone"
+            app:backgroundTint="@color/lingua_green"
+            app:tint="@color/white"/>
+    </FrameLayout>
+</LinearLayout>

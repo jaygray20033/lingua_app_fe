@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/lingua_light">
+
+    <!-- Config Panel -->
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="vertical" android:padding="12dp" android:background="@color/white">
+
+        <Spinner android:id="@+id/spinnerLanguage" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:layout_marginBottom="8dp"/>
+
+        <Spinner android:id="@+id/spinnerScenario" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:layout_marginBottom="4dp"/>
+
+        <TextView android:id="@+id/tvScenarioDesc" android:layout_width="match_parent"
+            android:layout_height="wrap_content" android:textSize="13sp" android:textColor="@color/lingua_gray"
+            android:layout_marginBottom="8dp"/>
+
+        <Button android:id="@+id/btnStartSession" android:layout_width="match_parent"
+            android:layout_height="48dp" android:text="🚀 BẮT ĐẦU HỘI THOẠI"
+            android:backgroundTint="@color/lingua_green" android:textColor="@color/white" android:textStyle="bold"/>
+
+        <ProgressBar android:id="@+id/progressBar" android:layout_width="wrap_content"
+            android:layout_height="wrap_content" android:visibility="gone" android:layout_gravity="center_horizontal"/>
+    </LinearLayout>
+
+    <TextView android:id="@+id/tvStatus" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:textSize="13sp" android:textColor="@color/lingua_gray" android:padding="8dp"
+        android:gravity="center" android:text="Sélectionnez une langue et un scénario"/>
+
+    <!-- Chat messages -->
+    <androidx.recyclerview.widget.RecyclerView android:id="@+id/recyclerMessages"
+        android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
+        android:padding="8dp" android:clipToPadding="false"/>
+
+    <!-- Input -->
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="horizontal" android:background="@color/white" android:padding="8dp"
+        android:elevation="8dp">
+
+        <ImageButton android:id="@+id/btnMic" android:layout_width="48dp" android:layout_height="48dp"
+            android:src="@android:drawable/ic_btn_speak_now"
+            android:background="@android:color/transparent"
+            android:tint="@color/lingua_red" android:enabled="false"/>
+
+        <EditText android:id="@+id/etMessage" android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:hint="Tapez votre message..."
+            android:background="@drawable/edit_text_bg" android:padding="10dp"
+            android:enabled="false" android:layout_marginHorizontal="8dp"/>
+
+        <ImageButton android:id="@+id/btnSend" android:layout_width="48dp" android:layout_height="48dp"
+            android:src="@android:drawable/ic_menu_send"
+            android:background="@drawable/btn_circle_green"
+            android:tint="@color/white" android:enabled="false"/>
+    </LinearLayout>
+</LinearLayout>

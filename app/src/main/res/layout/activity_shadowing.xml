@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/lingua_light">
+
+    <!-- Title bar -->
+    <TextView android:id="@+id/tvTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:textColor="@color/lingua_dark"
+        android:padding="12dp"
+        android:background="@color/white"
+        android:elevation="4dp"
+        android:text="Shadowing"/>
+
+    <!-- Status -->
+    <TextView android:id="@+id/tvStatus"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="8dp"
+        android:gravity="center"
+        android:textColor="@color/lingua_gray"
+        android:textSize="14sp"
+        android:text="Nhấn ▶ để nghe, rồi 🎙 để ghi âm"/>
+
+    <ProgressBar android:id="@+id/progressBar"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:visibility="gone"/>
+
+    <!-- Content area -->
+    <androidx.cardview.widget.CardView android:layout_width="match_parent" android:layout_height="0dp"
+        android:layout_weight="1" android:layout_margin="12dp" android:elevation="4dp"
+        xmlns:app="http://schemas.android.com/apk/res-auto"
+        app:cardCornerRadius="12dp">
+        <ScrollView android:layout_width="match_parent" android:layout_height="match_parent">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="vertical" android:padding="20dp">
+
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="@string/original_text" android:textStyle="bold" android:textColor="@color/lingua_gray"
+                    android:layout_marginBottom="8dp"/>
+
+                <TextView android:id="@+id/tvOriginalText" android:layout_width="match_parent"
+                    android:layout_height="wrap_content" android:textSize="20sp" android:textColor="@color/lingua_dark"
+                    android:lineSpacingMultiplier="1.4"/>
+
+                <View android:layout_width="match_parent" android:layout_height="1dp"
+                    android:background="@color/lingua_gray" android:layout_marginVertical="16dp"/>
+
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="@string/your_speech" android:textStyle="bold" android:textColor="@color/lingua_gray"
+                    android:layout_marginBottom="8dp"/>
+
+                <TextView android:id="@+id/tvRecognizedText" android:layout_width="match_parent"
+                    android:layout_height="wrap_content" android:textSize="18sp" android:textColor="@color/lingua_blue"
+                    android:hint="@string/press_record"/>
+
+                <TextView android:id="@+id/tvScore" android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" android:textSize="24sp" android:textStyle="bold"
+                    android:textColor="@color/lingua_green" android:layout_marginTop="8dp" android:text="Điểm: -"/>
+            </LinearLayout>
+        </ScrollView>
+    </androidx.cardview.widget.CardView>
+
+    <!-- Control buttons -->
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:padding="8dp" android:background="@color/white" android:elevation="8dp"
+        android:orientation="horizontal">
+
+        <Button android:id="@+id/btnPrev" android:layout_width="0dp" android:layout_height="56dp"
+            android:layout_weight="1" android:text="◀" android:backgroundTint="@color/lingua_gray"/>
+
+        <Button android:id="@+id/btnPlay" android:layout_width="0dp" android:layout_height="56dp"
+            android:layout_weight="1.5" android:text="@string/play_audio"
+            android:backgroundTint="@color/lingua_blue" android:textColor="@color/white" android:layout_marginHorizontal="4dp"/>
+
+        <Button android:id="@+id/btnRecord" android:layout_width="0dp" android:layout_height="56dp"
+            android:layout_weight="1.5" android:text="@string/record"
+            android:backgroundTint="@color/lingua_red" android:textColor="@color/white" android:layout_marginHorizontal="4dp"/>
+
+        <Button android:id="@+id/btnStop" android:layout_width="0dp" android:layout_height="56dp"
+            android:layout_weight="1" android:text="⏹" android:backgroundTint="@color/lingua_orange"
+            android:textColor="@color/white" android:visibility="gone"/>
+
+        <Button android:id="@+id/btnNextContent" android:layout_width="0dp" android:layout_height="56dp"
+            android:layout_weight="1" android:text="▶" android:backgroundTint="@color/lingua_gray"/>
+    </LinearLayout>
+</LinearLayout>
