@@ -12,6 +12,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import java.util.Map;
 
 import com.google.android.material.bottomnavigation.BottomNavigationView;
+import com.google.android.material.snackbar.Snackbar;
 import com.lingua.app.R;
 import com.lingua.app.adapters.EnrollmentAdapter;
 import com.lingua.app.adapters.QuestAdapter;
@@ -238,7 +239,10 @@ public class MainActivity extends AppCompatActivity {
                     });
                 }
             }
-            @Override public void onFailure(Call<ApiResponse<GamificationStats>> call, Throwable t) {}
+            @Override public void onFailure(Call<ApiResponse<GamificationStats>> call, Throwable t) {
+                // U20 FIX: Snackbar voi action "Thu lai" cho loadStats.
+                runOnUiThread(() -> showRetrySnackbar("Khong tai duoc thong tin tien do", v -> loadStats()));
+            }
         });
     }
 
@@ -262,9 +266,30 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
             @Override public void onFailure(Call<ApiResponse<List<Enrollment>>> c, Throwable t) {
-                runOnUiThread(() -> tvEnrollmentsEmpty.setVisibility(View.VISIBLE));
+                // U20 FIX: Snackbar voi action "Thu lai" thay vi de user mac ket.
+                runOnUiThread(() -> {
+                    tvEnrollmentsEmpty.setVisibility(View.VISIBLE);
+                    showRetrySnackbar("Khong tai duoc danh sach khoa hoc", v -> loadEnrollments());
+                });
             }
         });
+    }
+
+    /**
+     * U20 FIX: helper hien thi Snackbar voi action "Thu lai" thay vi Toast im lang.
+     * User co the bam Thu lai ngay tai chinh man hinh thay vi phai thoat ra/vao lai.
+     */
+    private void showRetrySnackbar(String message, android.view.View.OnClickListener onRetry) {
+        android.view.View root = findViewById(android.R.id.content);
+        if (root == null) return;
+        try {
+            Snackbar.make(root, message, Snackbar.LENGTH_INDEFINITE)
+                    .setAction("Thu lai", onRetry)
+                    .show();
+        } catch (Throwable t) {
+            // Fallback Toast neu Snackbar khong khoi tao duoc (theme khong tuong thich,...)
+            Toast.makeText(MainActivity.this, message, Toast.LENGTH_LONG).show();
+        }
     }
 
     private void configureContinueButton() {

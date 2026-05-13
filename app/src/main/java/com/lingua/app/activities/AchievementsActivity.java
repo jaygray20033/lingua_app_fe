@@ -37,6 +37,12 @@ public class AchievementsActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_simple_list);
 
+        // 7.6 FIX: an ActionBar de tranh hien thi 2 tieu de cung luc.
+        // activity_simple_list.xml co tvTitle = "Thanh tuu". Neu giu ActionBar
+        // mac dinh (ke thua app label), screen co 2 tieu de: "Lingua" (ActionBar)
+        // va "Thanh tuu" (tvTitle).
+        if (getSupportActionBar() != null) getSupportActionBar().hide();
+
         apiService = ApiClient.getService(this);
 
         tvTitle = findViewById(R.id.tvTitle);

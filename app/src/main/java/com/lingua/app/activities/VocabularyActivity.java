@@ -11,6 +11,7 @@ import android.widget.*;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+import com.google.android.material.snackbar.Snackbar;
 import com.google.android.material.tabs.TabLayout;
 import com.lingua.app.R;
 import com.lingua.app.adapters.WordAdapter;
@@ -266,9 +267,26 @@ public class VocabularyActivity extends AppCompatActivity implements TextToSpeec
                                 return;
                             }
                         }
-                        Toast.makeText(VocabularyActivity.this, "Lỗi: " + t.getMessage(), Toast.LENGTH_SHORT).show();
+                        // U20 FIX: Snackbar với action "Thử lại" thay vì Toast im lặng.
+                        showRetrySnackbar("Lỗi kết nối: " + t.getMessage(), v -> loadWords(firstPage));
                     }
                 });
+    }
+
+    /**
+     * U20 FIX: Snackbar với action "Thử lại" — user có thể retry ngay tại
+     * màn hình thay vì phải thoát ra/vào lại.
+     */
+    private void showRetrySnackbar(String message, android.view.View.OnClickListener onRetry) {
+        android.view.View root = findViewById(android.R.id.content);
+        if (root == null) return;
+        try {
+            Snackbar.make(root, message, Snackbar.LENGTH_INDEFINITE)
+                    .setAction("Thử lại", onRetry)
+                    .show();
+        } catch (Throwable t) {
+            Toast.makeText(VocabularyActivity.this, message, Toast.LENGTH_LONG).show();
+        }
     }
 
     /** Reads the offline-cache toggle from Settings. Defaults to true. */

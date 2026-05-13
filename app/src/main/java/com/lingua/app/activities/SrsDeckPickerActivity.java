@@ -111,18 +111,22 @@ public class SrsDeckPickerActivity extends AppCompatActivity {
             root.setPadding(pad, pad, pad, pad);
             root.setLayoutParams(new ViewGroup.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-            root.setBackgroundColor(0xFFFFFFFF);
+            // 7.5 FIX: dark-mode aware
+            root.setBackgroundColor(androidx.core.content.ContextCompat.getColor(
+                    parent.getContext(), R.color.surface_card));
 
             TextView title = new TextView(parent.getContext());
             title.setId(android.R.id.text1);
             title.setTextSize(18);
-            title.setTextColor(0xFF3C3C3C);
+            title.setTextColor(androidx.core.content.ContextCompat.getColor(
+                    parent.getContext(), R.color.text_primary));
             root.addView(title);
 
             TextView sub = new TextView(parent.getContext());
             sub.setId(android.R.id.text2);
             sub.setTextSize(13);
-            sub.setTextColor(0xFFAFAFAF);
+            sub.setTextColor(androidx.core.content.ContextCompat.getColor(
+                    parent.getContext(), R.color.text_hint));
             root.addView(sub);
 
             return new RecyclerView.ViewHolder(root) {};

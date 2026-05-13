@@ -1,6 +1,7 @@
 package com.lingua.app.views;
 
 import android.content.Context;
+import android.content.res.Configuration;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
@@ -29,11 +30,18 @@ public class BarChartView extends View {
         super(context, attrs, defStyleAttr);
         barPaint.setColor(0xFF58CC02);
         barPaint.setStyle(Paint.Style.FILL);
-        textPaint.setColor(0xFF3C3C3C);
+        // 7.5 FIX: mau text se duoc set lai trong onDraw theo dark/light mode
+        textPaint.setColor(isDarkMode() ? 0xFFEEEEEE : 0xFF3C3C3C);
         textPaint.setTextSize(spToPx(12));
         textPaint.setTextAlign(Paint.Align.CENTER);
-        baselinePaint.setColor(0xFFE0E0E0);
+        baselinePaint.setColor(isDarkMode() ? 0xFF333333 : 0xFFE0E0E0);
         baselinePaint.setStrokeWidth(2f);
+    }
+
+    /** 7.5 FIX: detect dark mode tu Configuration.UI_MODE_NIGHT_MASK. */
+    private boolean isDarkMode() {
+        return (getResources().getConfiguration().uiMode
+                & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
     }
 
     public void setData(int[] values, String[] labels) {
@@ -56,7 +64,8 @@ public class BarChartView extends View {
         float chartHeight = h - labelHeight - valueHeight;
         float baseY = getPaddingTop() + valueHeight + chartHeight;
 
-        // Baseline
+        // Baseline - 7.5 FIX: refresh color theo dark/light mode hien tai
+        baselinePaint.setColor(isDarkMode() ? 0xFF333333 : 0xFFE0E0E0);
         c.drawLine(getPaddingLeft(), baseY, getPaddingLeft() + w, baseY, baselinePaint);
 
         float slot = (float) w / values.length;
@@ -74,14 +83,16 @@ public class BarChartView extends View {
             c.drawRoundRect(rect, 8f, 8f, barPaint);
 
             // Value on top
+            // 7.5 FIX: dark-mode aware colors thay vi hardcode hex
+            boolean dark = isDarkMode();
             if (values[i] > 0) {
-                textPaint.setColor(0xFF3C3C3C);
+                textPaint.setColor(dark ? 0xFFEEEEEE : 0xFF3C3C3C);
                 textPaint.setTextSize(spToPx(11));
                 c.drawText(String.valueOf(values[i]), left + barWidth / 2f, top - 6f, textPaint);
             }
 
             // Label below baseline
-            textPaint.setColor(0xFFAFAFAF);
+            textPaint.setColor(dark ? 0xFFBBBBBB : 0xFFAFAFAF);
             textPaint.setTextSize(spToPx(12));
             c.drawText(labels[i], left + barWidth / 2f,
                     baseY + labelHeight - 4, textPaint);

@@ -6,6 +6,7 @@ import android.widget.ProgressBar;
 import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
+import com.google.android.material.snackbar.Snackbar;
 
 import com.lingua.app.R;
 import com.lingua.app.api.ApiClient;
@@ -85,11 +86,11 @@ public class StatisticsActivity extends AppCompatActivity {
             @Override
             public void onFailure(Call<ApiResponse<GamificationStats>> call, Throwable t) {
                 progressBar.setVisibility(View.GONE);
-                // 6.9 FIX: hiển thị thông báo lỗi rõ ràng cho user thay vì
-                // chỉ ẩn progressBar (trước đây user không biết gì đã xảy ra).
-                android.widget.Toast.makeText(StatisticsActivity.this,
+                // 6.9 + U20 FIX: Snackbar với action "Thử lại" thay vì Toast im lặng.
+                // User có thể bấm Thử lại ngay tại màn hình thay vì phải thoát/vào lại.
+                runOnUiThread(() -> showRetrySnackbar(
                         "Không tải được số liệu thống kê. Kiểm tra kết nối mạng.",
-                        android.widget.Toast.LENGTH_LONG).show();
+                        v -> loadStats()));
             }
         });
         // TODO 1.1 + 3.4 — appel additionnel à /gamification/analytics pour
@@ -116,7 +117,14 @@ public class StatisticsActivity extends AppCompatActivity {
                     runOnUiThread(() -> renderAnalyticsFallback());
                 }
             }
-            @Override public void onFailure(Call<ApiResponse<Map<String, Object>>> c, Throwable t) {}
+            @Override public void onFailure(Call<ApiResponse<Map<String, Object>>> c, Throwable t) {
+                // 7.3 FIX: thông báo cho user biết biểu đồ XP đang dùng dữ liệu ước tính.
+                // Trước đây onFailure im lặng -> user không biết tại sao chart hiển
+                // thị dữ liệu ước tính thay vì dữ liệu thực.
+                runOnUiThread(() -> android.widget.Toast.makeText(StatisticsActivity.this,
+                        "Không tải được dữ liệu chi tiết. Đang dùng dữ liệu ước tính.",
+                        android.widget.Toast.LENGTH_SHORT).show());
+            }
         });
     }
 
@@ -158,6 +166,23 @@ public class StatisticsActivity extends AppCompatActivity {
         String cur = String.valueOf(tv.getText());
         if ("0".equals(cur) || cur == null || cur.isEmpty()) {
             tv.setText(String.valueOf(value));
+        }
+    }
+
+    /**
+     * U20 FIX: helper Snackbar với action "Thử lại". Cho phép user retry các
+     * request tải stats / analytics ngay tại màn hình thay vì phải thoát ra.
+     */
+    private void showRetrySnackbar(String message, android.view.View.OnClickListener onRetry) {
+        android.view.View root = findViewById(android.R.id.content);
+        if (root == null) return;
+        try {
+            Snackbar.make(root, message, Snackbar.LENGTH_INDEFINITE)
+                    .setAction("Thử lại", onRetry)
+                    .show();
+        } catch (Throwable t) {
+            android.widget.Toast.makeText(StatisticsActivity.this, message,
+                    android.widget.Toast.LENGTH_LONG).show();
         }
     }
 

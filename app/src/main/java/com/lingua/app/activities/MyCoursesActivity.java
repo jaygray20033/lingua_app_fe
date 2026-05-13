@@ -102,7 +102,9 @@ public class MyCoursesActivity extends AppCompatActivity {
             root.setOrientation(LinearLayout.VERTICAL);
             int pad = (int) (14 * getResources().getDisplayMetrics().density);
             root.setPadding(pad, pad, pad, pad);
-            root.setBackgroundColor(0xFFFFFFFF);
+            // 7.5 FIX: dung mau dark-mode aware
+            root.setBackgroundColor(androidx.core.content.ContextCompat.getColor(
+                    parent.getContext(), R.color.surface_card));
             ViewGroup.MarginLayoutParams lp = new ViewGroup.MarginLayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
             int m = (int) (4 * getResources().getDisplayMetrics().density);
@@ -112,14 +114,17 @@ public class MyCoursesActivity extends AppCompatActivity {
             TextView t = new TextView(parent.getContext());
             t.setId(android.R.id.text1);
             t.setTextSize(17);
-            t.setTextColor(0xFF3C3C3C);
+            // 7.5 FIX: dark-mode aware text colors
+            t.setTextColor(androidx.core.content.ContextCompat.getColor(
+                    parent.getContext(), R.color.text_primary));
             t.setTypeface(t.getTypeface(), android.graphics.Typeface.BOLD);
             root.addView(t);
 
             TextView s = new TextView(parent.getContext());
             s.setId(android.R.id.text2);
             s.setTextSize(13);
-            s.setTextColor(0xFFAFAFAF);
+            s.setTextColor(androidx.core.content.ContextCompat.getColor(
+                    parent.getContext(), R.color.text_hint));
             root.addView(s);
 
             return new RecyclerView.ViewHolder(root) {};

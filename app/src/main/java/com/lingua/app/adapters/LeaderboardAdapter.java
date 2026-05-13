@@ -1,6 +1,6 @@
 package com.lingua.app.adapters;
 
-import android.graphics.Color;
+import android.util.TypedValue;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -44,8 +44,17 @@ public class LeaderboardAdapter extends RecyclerView.Adapter<LeaderboardAdapter.
         h.tvXp.setText(e.xp + " XP");
 
         boolean me = currentUserId > 0 && e.id == currentUserId;
-        h.itemView.setBackgroundColor(me ? 0xFFE3F2FD : Color.WHITE);
-        h.tvName.setTextColor(me ? 0xFF1976D2 : 0xFF3C3C3C);
+        // 7.4 FIX: dung mau dark-mode aware tu resources (values + values-night)
+        // thay vi Color.WHITE / hex hardcode. Truoc day o dark mode itemView
+        // luon trang choi va text toi khong doc duoc.
+        int bgColor = androidx.core.content.ContextCompat.getColor(
+                h.itemView.getContext(),
+                me ? R.color.row_highlight_me : R.color.surface_card);
+        int nameColor = androidx.core.content.ContextCompat.getColor(
+                h.itemView.getContext(),
+                me ? R.color.row_highlight_text : R.color.text_primary);
+        h.itemView.setBackgroundColor(bgColor);
+        h.tvName.setTextColor(nameColor);
 
         // 6.10 FIX: hiển thị avatar nếu có URL. Dùng Glide (đã có trong
         // dependencies) qua reflection để tránh crash nếu module này build

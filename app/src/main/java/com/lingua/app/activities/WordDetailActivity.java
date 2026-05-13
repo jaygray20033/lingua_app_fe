@@ -195,7 +195,8 @@ public class WordDetailActivity extends AppCompatActivity implements TextToSpeec
         container.setOrientation(LinearLayout.VERTICAL);
         int p = (int) (12 * getResources().getDisplayMetrics().density);
         container.setPadding(p, p, p, p);
-        container.setBackgroundColor(0xFFFFFFFF);
+        // 7.5 FIX: dung mau dark-mode aware tu resources thay vi hardcode 0xFFFFFFFF.
+        container.setBackgroundColor(androidx.core.content.ContextCompat.getColor(this, R.color.surface_card));
         ViewGroup.MarginLayoutParams lp = new ViewGroup.MarginLayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         lp.bottomMargin = (int) (8 * getResources().getDisplayMetrics().density);
@@ -204,14 +205,15 @@ public class WordDetailActivity extends AppCompatActivity implements TextToSpeec
         TextView tv = new TextView(this);
         tv.setText(sentence);
         tv.setTextSize(16);
-        tv.setTextColor(0xFF222222);
+        // 7.5 FIX: dark-mode aware text colors
+        tv.setTextColor(androidx.core.content.ContextCompat.getColor(this, R.color.text_primary));
         container.addView(tv);
 
         if (translation != null && !translation.isEmpty()) {
             TextView tt = new TextView(this);
             tt.setText(translation);
             tt.setTextSize(13);
-            tt.setTextColor(0xFF888888);
+            tt.setTextColor(androidx.core.content.ContextCompat.getColor(this, R.color.text_secondary));
             container.addView(tt);
         }
 

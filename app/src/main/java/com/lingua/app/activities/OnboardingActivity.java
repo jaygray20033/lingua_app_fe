@@ -495,7 +495,12 @@ public class OnboardingActivity extends AppCompatActivity {
             h.tvTitle.setText(titles[pos]);
             h.tvSubtitle.setText(subs[pos]);
             h.tvCheck.setVisibility(pos == selected ? View.VISIBLE : View.INVISIBLE);
-            h.itemView.setBackgroundColor(pos == selected ? 0xFFD7FFB8 : 0xFFFFFFFF);
+            // 7.5 FIX: dung mau dark-mode aware tu resources (values + values-night)
+            // thay vi hardcode 0xFFD7FFB8 / 0xFFFFFFFF. Truoc day o dark mode item
+            // luon trang choi va lua chon kho phan biet.
+            h.itemView.setBackgroundColor(androidx.core.content.ContextCompat.getColor(
+                    h.itemView.getContext(),
+                    pos == selected ? R.color.onboarding_choice_selected : R.color.onboarding_choice_default));
             h.itemView.setOnClickListener(v -> {
                 int prev = selected;
                 selected = pos;

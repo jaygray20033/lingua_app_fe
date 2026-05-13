@@ -124,7 +124,8 @@ public class GrammarDetailActivity extends AppCompatActivity {
         box.setOrientation(LinearLayout.VERTICAL);
         int p = (int) (12 * getResources().getDisplayMetrics().density);
         box.setPadding(p, p, p, p);
-        box.setBackgroundColor(0xFFFFFFFF);
+        // 7.5 FIX: dung mau dark-mode aware tu resources thay vi hardcode 0xFFFFFFFF.
+        box.setBackgroundColor(androidx.core.content.ContextCompat.getColor(this, R.color.surface_card));
         ViewGroup.MarginLayoutParams lp = new ViewGroup.MarginLayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         lp.bottomMargin = (int) (8 * getResources().getDisplayMetrics().density);
@@ -133,14 +134,15 @@ public class GrammarDetailActivity extends AppCompatActivity {
         TextView t = new TextView(this);
         t.setText(ex.sentence != null ? ex.sentence : "");
         t.setTextSize(15);
-        t.setTextColor(0xFF222222);
+        // 7.5 FIX: dark-mode aware text colors
+        t.setTextColor(androidx.core.content.ContextCompat.getColor(this, R.color.text_primary));
         box.addView(t);
 
         if (ex.translation != null && !ex.translation.isEmpty()) {
             TextView tr = new TextView(this);
             tr.setText(ex.translation);
             tr.setTextSize(13);
-            tr.setTextColor(0xFF888888);
+            tr.setTextColor(androidx.core.content.ContextCompat.getColor(this, R.color.text_secondary));
             box.addView(tr);
         }
         if (ex.note != null && !ex.note.isEmpty()) {
@@ -192,25 +194,40 @@ public class GrammarDetailActivity extends AppCompatActivity {
                         isFavorite = true;
                         runOnUiThread(() -> btnFavorite.setImageResource(android.R.drawable.btn_star_big_on));
                     }
+                } else {
+                    // 7.2 FIX: endpoint loi (404/500) hoac data null -> fallback list.
+                    fallbackCheckFavoriteList();
                 }
             }
             @Override public void onFailure(Call<ApiResponse<Map<String, Object>>> c, Throwable t) {
-                // Fallback à l'ancienne méthode
-                apiService.getFavorites("GRAMMAR").enqueue(new Callback<ApiResponse<List<Favorite>>>() {
-                    @Override public void onResponse(Call<ApiResponse<List<Favorite>>> c2, Response<ApiResponse<List<Favorite>>> r2) {
-                        if (r2.isSuccessful() && r2.body() != null && r2.body().getData() != null) {
-                            for (Favorite f : r2.body().getData()) {
-                                if (f.itemId == grammarId) {
-                                    isFavorite = true;
-                                    runOnUiThread(() -> btnFavorite.setImageResource(android.R.drawable.btn_star_big_on));
-                                    break;
-                                }
-                            }
+                // Fallback (network error)
+                fallbackCheckFavoriteList();
+            }
+        });
+    }
+
+    /**
+     * 7.2 FIX: fallback tach ra thanh ham rieng de goi ca khi:
+     *   - response.isSuccessful() == false (endpoint tra 404/500)
+     *   - hoac onFailure (network error)
+     * Truoc day fallback chi chay trong onFailure -> neu backend chua implement
+     * endpoint /favorites/check thi icon tim grammar luon hien thi trong du
+     * da bookmark.
+     */
+    private void fallbackCheckFavoriteList() {
+        apiService.getFavorites("GRAMMAR").enqueue(new Callback<ApiResponse<List<Favorite>>>() {
+            @Override public void onResponse(Call<ApiResponse<List<Favorite>>> c2, Response<ApiResponse<List<Favorite>>> r2) {
+                if (r2.isSuccessful() && r2.body() != null && r2.body().getData() != null) {
+                    for (Favorite f : r2.body().getData()) {
+                        if (f.itemId == grammarId) {
+                            isFavorite = true;
+                            runOnUiThread(() -> btnFavorite.setImageResource(android.R.drawable.btn_star_big_on));
+                            break;
                         }
                     }
-                    @Override public void onFailure(Call<ApiResponse<List<Favorite>>> c2, Throwable t2) {}
-                });
+                }
             }
+            @Override public void onFailure(Call<ApiResponse<List<Favorite>>> c2, Throwable t2) {}
         });
     }
 

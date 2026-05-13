@@ -16,4 +16,23 @@
     <color name="lingua_light">#F7F7F7</color>
     <color name="correct_green">#D7FFB8</color>
     <color name="wrong_red">#FFDDDD</color>
+
+    <!-- 7.5 FIX: Dark-mode aware semantic colors. Sẽ override trong values-night.
+         Mục đích: thay các giá trị hardcode 0xFFFFFFFF / Color.WHITE / 0xFF3C3C3C
+         bằng @color/surface_card, @color/text_primary, ... để tự đổi theo theme. -->
+    <color name="surface_card">#FFFFFFFF</color>
+    <color name="surface_card_pressed">#FFEEEEEE</color>
+    <color name="surface_screen">#F7F7F7</color>
+    <color name="text_primary">#FF3C3C3C</color>
+    <color name="text_secondary">#FF888888</color>
+    <color name="text_hint">#FFAFAFAF</color>
+    <color name="divider_line">#FFE0E0E0</color>
+
+    <!-- Highlight cho item của chính user trong leaderboard / row được chọn -->
+    <color name="row_highlight_me">#FFE3F2FD</color>
+    <color name="row_highlight_text">#FF1976D2</color>
+
+    <!-- Onboarding choice -->
+    <color name="onboarding_choice_selected">#FFD7FFB8</color>
+    <color name="onboarding_choice_default">#FFFFFFFF</color>
 </resources>

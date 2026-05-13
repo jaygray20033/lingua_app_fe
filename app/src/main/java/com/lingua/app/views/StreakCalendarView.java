@@ -1,6 +1,7 @@
 package com.lingua.app.views;
 
 import android.content.Context;
+import android.content.res.Configuration;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.RectF;
@@ -27,9 +28,16 @@ public class StreakCalendarView extends View {
     public StreakCalendarView(Context context, @Nullable AttributeSet attrs, int defStyleAttr) {
         super(context, attrs, defStyleAttr);
         cellPaint.setStyle(Paint.Style.FILL);
-        textPaint.setColor(0xFFAFAFAF);
+        // 7.5 FIX: dark-mode aware. Mau text label se duoc set lai trong onDraw.
+        textPaint.setColor(isDarkMode() ? 0xFFBBBBBB : 0xFFAFAFAF);
         textPaint.setTextSize(spToPx(10));
         textPaint.setTextAlign(Paint.Align.CENTER);
+    }
+
+    /** 7.5 FIX: detect dark mode tu Configuration.UI_MODE_NIGHT_MASK. */
+    private boolean isDarkMode() {
+        return (getResources().getConfiguration().uiMode
+                & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
     }
 
     /** Sets the 30-day activity. activity[0] = today, activity[29] = 30 days ago. */
@@ -53,6 +61,9 @@ public class StreakCalendarView extends View {
 
     @Override protected void onDraw(Canvas c) {
         super.onDraw(c);
+        // 7.5 FIX: refresh mau text theo dark/light mode hien tai (truong hop user
+        // doi theme mid-app va view duoc redraw).
+        textPaint.setColor(isDarkMode() ? 0xFFBBBBBB : 0xFFAFAFAF);
         int w = getWidth() - getPaddingLeft() - getPaddingRight();
         int cell = w / 6;
         int margin = (int) (cell * 0.10);
@@ -79,8 +90,11 @@ public class StreakCalendarView extends View {
     }
 
     private int colorForLevel(int level) {
+        // 7.5 FIX: level 0 (no-activity) cell - dung mau toi hon o dark mode
+        // de van phan biet duoc voi background nhung khong choi mat.
+        boolean dark = isDarkMode();
         switch (Math.max(0, Math.min(4, level))) {
-            case 0: return 0xFFEBEDF0;
+            case 0: return dark ? 0xFF2A2A2A : 0xFFEBEDF0;
             case 1: return 0xFF9BE9A8;
             case 2: return 0xFF40C463;
             case 3: return 0xFF30A14E;

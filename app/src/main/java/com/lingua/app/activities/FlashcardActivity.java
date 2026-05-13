@@ -8,6 +8,7 @@ import android.os.Looper;
 import android.view.View;
 import android.widget.*;
 import androidx.appcompat.app.AppCompatActivity;
+import com.google.android.material.snackbar.Snackbar;
 import com.lingua.app.R;
 import com.lingua.app.api.ApiClient;
 import com.lingua.app.api.LinguaApiService;
@@ -132,9 +133,26 @@ public class FlashcardActivity extends AppCompatActivity {
             @Override
             public void onFailure(Call<ApiResponse<SrsDueResponse>> call, Throwable t) {
                 progressBar.setVisibility(View.GONE);
-                Toast.makeText(FlashcardActivity.this, "Lỗi tải dữ liệu: " + t.getMessage(), Toast.LENGTH_SHORT).show();
+                // U20 FIX: Snackbar với action "Thử lại" thay vì Toast im lặng.
+                showRetrySnackbar("Lỗi tải dữ liệu: " + t.getMessage(), v -> loadDueCards());
             }
         });
+    }
+
+    /**
+     * U20 FIX: helper Snackbar với action "Thử lại" để user có thể retry tải
+     * dữ liệu SRS ngay tại màn hình thay vì phải thoát ra/vào lại.
+     */
+    private void showRetrySnackbar(String message, android.view.View.OnClickListener onRetry) {
+        android.view.View root = findViewById(android.R.id.content);
+        if (root == null) return;
+        try {
+            Snackbar.make(root, message, Snackbar.LENGTH_INDEFINITE)
+                    .setAction("Thử lại", onRetry)
+                    .show();
+        } catch (Throwable t) {
+            Toast.makeText(FlashcardActivity.this, message, Toast.LENGTH_LONG).show();
+        }
     }
 
     private void recomputeStatsFromList() {
