@@ -8,8 +8,11 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.provider.MediaStore;
 import android.text.InputType;
+import android.util.Base64;
 import android.view.View;
 import android.widget.*;
+
+import java.io.ByteArrayOutputStream;
 
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
@@ -311,21 +314,53 @@ public class ProfileActivity extends AppCompatActivity {
             if (uri == null) return;
             try {
                 Bitmap bm = MediaStore.Images.Media.getBitmap(getContentResolver(), uri);
-                imgAvatar.setImageBitmap(bm);
+
+                // U13 FIX: ne plus envoyer `uri.toString()` (content://...) — le serveur
+                // ne peut pas y accéder. On redimensionne, compresse en JPEG, puis envoie
+                // en base64 au backend qui sauvegarde et renvoie une URL publique.
+                Bitmap scaled = scaleBitmap(bm, 512);
+                imgAvatar.setImageBitmap(scaled);
                 tvAvatar.setVisibility(View.GONE);
-                Toast.makeText(this, "Đã chọn ảnh — đang lưu...", Toast.LENGTH_SHORT).show();
-                // In a real app we would upload the bitmap to the server and get a URL back.
-                // Here we send the local URI as the avatar reference (server may host /upload).
+                Toast.makeText(this, "Đang tải ảnh lên...", Toast.LENGTH_SHORT).show();
+
+                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                scaled.compress(Bitmap.CompressFormat.JPEG, 80, baos);
+                String b64 = Base64.encodeToString(baos.toByteArray(), Base64.NO_WRAP);
+
+                // On envoie avatarBase64 (nouveau champ) + contentType. Le backend
+                // (updateProfile ou /upload/avatar) stocke et renvoie l'URL publique.
                 Map<String, Object> body = new HashMap<>();
-                body.put("avatarUrl", uri.toString());
+                body.put("avatarBase64", b64);
+                body.put("avatarContentType", "image/jpeg");
                 apiService.updateProfile(body).enqueue(new Callback<ApiResponse<User>>() {
-                    @Override public void onResponse(Call<ApiResponse<User>> c, Response<ApiResponse<User>> r) {}
-                    @Override public void onFailure(Call<ApiResponse<User>> c, Throwable t) {}
+                    @Override public void onResponse(Call<ApiResponse<User>> c, Response<ApiResponse<User>> r) {
+                        if (r.isSuccessful() && r.body() != null && r.body().isSuccess()) {
+                            Toast.makeText(ProfileActivity.this, "✅ Đã cập nhật ảnh đại diện", Toast.LENGTH_SHORT).show();
+                        } else {
+                            String msg = r.body() != null && r.body().getMessage() != null
+                                    ? r.body().getMessage() : "Không lưu được ảnh";
+                            Toast.makeText(ProfileActivity.this, msg, Toast.LENGTH_SHORT).show();
+                        }
+                    }
+                    @Override public void onFailure(Call<ApiResponse<User>> c, Throwable t) {
+                        Toast.makeText(ProfileActivity.this, "Lỗi tải ảnh: " + t.getMessage(), Toast.LENGTH_SHORT).show();
+                    }
                 });
             } catch (Exception e) {
                 Toast.makeText(this, "Không đọc được ảnh: " + e.getMessage(), Toast.LENGTH_SHORT).show();
             }
         }
+    }
+
+    /** U13 helper: redimensionne le bitmap pour ne pas envoyer 5MB de base64 inutilement. */
+    private Bitmap scaleBitmap(Bitmap src, int maxSize) {
+        if (src == null) return null;
+        int w = src.getWidth(), h = src.getHeight();
+        if (w <= maxSize && h <= maxSize) return src;
+        float ratio = Math.min((float) maxSize / w, (float) maxSize / h);
+        int nw = Math.round(w * ratio);
+        int nh = Math.round(h * ratio);
+        return Bitmap.createScaledBitmap(src, nw, nh, true);
     }
 
     // 6.14 FIX: chặn double-click "Đăng xuất" — trước đây bấm 2 lần gọi API 2 lần.

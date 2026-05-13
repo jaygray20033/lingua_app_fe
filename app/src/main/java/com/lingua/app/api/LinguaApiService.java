@@ -5,6 +5,8 @@ import com.lingua.app.models.*;
 import java.util.List;
 import java.util.Map;
 
+import okhttp3.MultipartBody;
+import okhttp3.RequestBody;
 import retrofit2.Call;
 import retrofit2.http.*;
 
@@ -28,6 +30,18 @@ public interface LinguaApiService {
 
     @PUT("auth/profile")
     Call<ApiResponse<User>> updateProfile(@Body Map<String, Object> body);
+
+    // U13 FIX — Upload avatar (multipart/form-data) ; alternatif à avatarBase64
+    // via updateProfile. Le backend renvoie { url, avatarUrl }.
+    @Multipart
+    @POST("upload/avatar")
+    Call<ApiResponse<Map<String, Object>>> uploadAvatar(
+            @Part MultipartBody.Part avatar);
+
+    // U13 FIX — variante JSON base64 (si l'app veut cibler /upload/avatar en JSON)
+    @POST("upload/avatar")
+    Call<ApiResponse<Map<String, Object>>> uploadAvatarBase64(
+            @Body Map<String, Object> body);
 
     // 1.1 — Đổi mật khẩu
     @POST("auth/change-password")
