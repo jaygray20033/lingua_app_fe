@@ -212,6 +212,18 @@ public class MainActivity extends AppCompatActivity {
         // BUG #11 FIX: cooldown 30s để tránh gọi 4 API requests mỗi lần user
         // quay về Home (kể cả khi chỉ tắt màn hình rồi bật lại, hoặc quay từ
         // Settings về). Tốn pin, tốn dữ liệu, có thể bị rate-limit.
+        //
+        // BUG #L2 FIX: nhưng nếu Activity được start lại với extra "forceRefresh"
+        // (ví dụ sau khi user hoàn thành lesson và quay về Home từ LessonResultActivity),
+        // ta bypass cooldown để XP/streak/quest progress hiện ra ngay lập tức,
+        // tránh trải nghiệm "đã học xong nhưng XP không tăng".
+        boolean force = getIntent() != null
+                && getIntent().getBooleanExtra("forceRefresh", false);
+        if (force) {
+            getIntent().removeExtra("forceRefresh");
+            lastRefreshMs = 0; // reset cooldown
+        }
+
         long now = System.currentTimeMillis();
         if (now - lastRefreshMs < REFRESH_COOLDOWN_MS) {
             return;

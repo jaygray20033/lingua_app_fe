@@ -59,11 +59,23 @@ public class LessonResultActivity extends AppCompatActivity {
         // 6.4 FIX: thay vì chỉ finish() (sẽ rơi về PracticeActivity đã hết bài,
         // gây UX khó hiểu), điều hướng rõ ràng về MainActivity và clear stack
         // các activity PracticeActivity / CourseDetailActivity ở giữa.
-        btnDone.setOnClickListener(v -> {
-            Intent i = new Intent(LessonResultActivity.this, MainActivity.class);
-            i.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-            startActivity(i);
-            finish();
-        });
+        // BUG #L2 FIX: gắn extra "forceRefresh"=true để MainActivity bypass
+        // cooldown 30s và refresh ngay XP/streak/quest progress.
+        btnDone.setOnClickListener(v -> goHome());
+    }
+
+    private void goHome() {
+        Intent i = new Intent(LessonResultActivity.this, MainActivity.class);
+        i.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        i.putExtra("forceRefresh", true);
+        startActivity(i);
+        finish();
+    }
+
+    @Override
+    public void onBackPressed() {
+        // BUG #L2 FIX: nút back cũng phải forceRefresh — nếu không, user nhấn back
+        // sẽ rơi về MainActivity và cooldown 30s khiến XP/streak không cập nhật.
+        goHome();
     }
 }
