@@ -106,9 +106,10 @@ public class ShadowingActivity extends AppCompatActivity implements TextToSpeech
     }
 
     /** Loads shadowing sentences from the backend.
-     *  BUG B13 FIX: lit la langue/level depuis SharedPreferences au lieu de
-     *  hardcoder ja/N4 → l'utilisateur qui apprend l'anglais ou le chinois
-     *  voyait quand même des phrases japonaises.
+     *  BUG B13 FIX: đọc ngôn ngữ/level từ SharedPreferences thay vì hardcode
+     *  ja/N4 → trước đây user học tiếng Anh hoặc tiếng Trung vẫn thấy các câu
+     *  tiếng Nhật.
+     *  (BUG #19 FIX: comment tiếng Pháp → tiếng Việt.)
      */
     private void loadSentences() {
         progressBar.setVisibility(View.VISIBLE);

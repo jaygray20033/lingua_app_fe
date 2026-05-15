@@ -274,6 +274,16 @@ public class FlashcardActivity extends AppCompatActivity {
     }
 
     @Override
+    protected void onPause() {
+        // BUG #14 FIX: cancel pending advance khi user nhấn Home / chuyển ra
+        // khỏi activity. Trước đây nếu user rời màn hình sau khi rate card,
+        // sau khi delay 400ms hết hạn card vẫn nhảy tự động → behavior khó hiểu
+        // khi user quay lại sau một thời gian dài.
+        advanceHandler.removeCallbacksAndMessages(null);
+        super.onPause();
+    }
+
+    @Override
     protected void onDestroy() {
         // BUG B17 FIX: cancel any pending advance callbacks to avoid leaking
         // this Activity and crashing if the user rotates / leaves the screen.
@@ -282,7 +292,8 @@ public class FlashcardActivity extends AppCompatActivity {
     }
 
     /** Triggers a quest progress event (SRS_REVIEW) on the backend.
-     *  BUG B4 FIX: backend lit `event` / `value` (et non `type` / `amount`).
+     *  BUG B4 FIX: backend đọc `event` / `value` (chứ không phải `type` / `amount`).
+     *  (BUG #19 FIX: comment tiếng Pháp → tiếng Việt.)
      */
     private void triggerSrsQuestEvent() {
         Map<String, Object> body = new HashMap<>();

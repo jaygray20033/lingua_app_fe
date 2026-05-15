@@ -129,9 +129,24 @@ public class ProfileActivity extends AppCompatActivity {
                     runOnUiThread(() -> {
                         if (u.displayName != null) tvDisplayName.setText(u.displayName);
                         if (u.email != null) tvEmail.setText(u.email);
+                        // BUG #16 FIX: load avatar URL với Glide (circleCrop)
+                        // thay vì chỉ ẩn tvAvatar. Trước đây imgAvatar không bao
+                        // giờ được load → tính năng đổi avatar hoạt động (gọi
+                        // API upload) nhưng không bao giờ hiển thị kết quả.
                         if (u.avatarUrl != null && !u.avatarUrl.isEmpty()) {
-                            tvAvatar.setVisibility(View.GONE);
-                            // Note: in production, use Glide/Picasso. We just show emoji as fallback.
+                            try {
+                                com.bumptech.glide.Glide.with(ProfileActivity.this)
+                                        .load(u.avatarUrl)
+                                        .circleCrop()
+                                        .placeholder(android.R.drawable.sym_def_app_icon)
+                                        .error(android.R.drawable.sym_def_app_icon)
+                                        .into(imgAvatar);
+                                imgAvatar.setVisibility(View.VISIBLE);
+                                tvAvatar.setVisibility(View.GONE);
+                            } catch (Throwable t) {
+                                // Fallback nếu Glide lỗi: vẫn ẩn emoji.
+                                tvAvatar.setVisibility(View.GONE);
+                            }
                         }
                     });
                 }
@@ -315,9 +330,10 @@ public class ProfileActivity extends AppCompatActivity {
             try {
                 Bitmap bm = MediaStore.Images.Media.getBitmap(getContentResolver(), uri);
 
-                // U13 FIX: ne plus envoyer `uri.toString()` (content://...) — le serveur
-                // ne peut pas y accéder. On redimensionne, compresse en JPEG, puis envoie
-                // en base64 au backend qui sauvegarde et renvoie une URL publique.
+                // U13 FIX: không gửi `uri.toString()` (content://...) nữa — server
+                // không thể truy cập được. Ta scale lại, nén JPEG, rồi gửi base64
+                // lên backend; backend lưu lại và trả về URL công khai.
+                // (BUG #19 FIX: comment tiếng Pháp → tiếng Việt.)
                 Bitmap scaled = scaleBitmap(bm, 512);
                 imgAvatar.setImageBitmap(scaled);
                 tvAvatar.setVisibility(View.GONE);
@@ -327,8 +343,9 @@ public class ProfileActivity extends AppCompatActivity {
                 scaled.compress(Bitmap.CompressFormat.JPEG, 80, baos);
                 String b64 = Base64.encodeToString(baos.toByteArray(), Base64.NO_WRAP);
 
-                // On envoie avatarBase64 (nouveau champ) + contentType. Le backend
-                // (updateProfile ou /upload/avatar) stocke et renvoie l'URL publique.
+                // Gửi avatarBase64 (field mới) + contentType. Backend
+                // (updateProfile hoặc /upload/avatar) lưu lại và trả về URL công khai.
+                // (BUG #19 FIX: comment tiếng Pháp → tiếng Việt.)
                 Map<String, Object> body = new HashMap<>();
                 body.put("avatarBase64", b64);
                 body.put("avatarContentType", "image/jpeg");
@@ -352,7 +369,8 @@ public class ProfileActivity extends AppCompatActivity {
         }
     }
 
-    /** U13 helper: redimensionne le bitmap pour ne pas envoyer 5MB de base64 inutilement. */
+    /** U13 helper: scale bitmap lại để không gửi 5MB base64 lãng phí.
+     *  (BUG #19 FIX: comment tiếng Pháp → tiếng Việt.) */
     private Bitmap scaleBitmap(Bitmap src, int maxSize) {
         if (src == null) return null;
         int w = src.getWidth(), h = src.getHeight();

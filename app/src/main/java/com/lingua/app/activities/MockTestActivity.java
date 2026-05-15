@@ -35,6 +35,8 @@ import retrofit2.Response;
  * starts the test session.
  */
 public class MockTestActivity extends AppCompatActivity {
+    // BUG #20 FIX: request code cho placement test khi mở từ Onboarding.
+    private static final int REQ_PLACEMENT_DETAIL = 9911;
     private LinguaApiService apiService;
     private RecyclerView recyclerView;
     private TextView tvEmpty;
@@ -43,6 +45,22 @@ public class MockTestActivity extends AppCompatActivity {
     private final List<MockTest> items = new ArrayList<>();
     private MockAdapter adapter;
     private String currentLang = "ja";
+
+    // BUG #20 FIX: chuyển kết quả placement từ MockTestDetailActivity về
+    // OnboardingActivity (nếu activity này được mở từ onboarding flow).
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQ_PLACEMENT_DETAIL && resultCode == RESULT_OK && data != null) {
+            String level = data.getStringExtra("level");
+            if (level != null && !level.isEmpty()) {
+                Intent out = new Intent();
+                out.putExtra("level", level);
+                setResult(RESULT_OK, out);
+                finish();
+            }
+        }
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -200,7 +218,17 @@ public class MockTestActivity extends AppCompatActivity {
             v.setOnClickListener(view -> {
                 Intent i = new Intent(MockTestActivity.this, MockTestDetailActivity.class);
                 i.putExtra("mockTestId", m.id);
-                startActivity(i);
+                // BUG #20 FIX: propagate cờ "placement" và ngôn ngữ từ
+                // OnboardingActivity xuống MockTestDetailActivity để khi nộp bài
+                // có thể setResult(OK, suggestedLevel) về lại OnboardingActivity.
+                boolean isPlacement = getIntent().getBooleanExtra("placement", false);
+                if (isPlacement) {
+                    i.putExtra("placement", true);
+                    i.putExtra("language", getIntent().getStringExtra("language"));
+                    startActivityForResult(i, REQ_PLACEMENT_DETAIL);
+                } else {
+                    startActivity(i);
+                }
             });
         }
 

@@ -46,7 +46,9 @@ public class SplashActivity extends AppCompatActivity {
             NotificationScheduler.scheduleDaily(this, hour, min);
         }
 
-        new Handler(Looper.getMainLooper()).postDelayed(this::route, 1500);
+        // BUG #17 FIX: giảm delay từ 1500ms xuống 800ms. Trên thiết bị nhanh,
+        // 1.5 giây là quá dư thừa và làm user cảm thấy app khởi động chậm.
+        new Handler(Looper.getMainLooper()).postDelayed(this::route, 800);
     }
 
     private void route() {

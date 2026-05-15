@@ -49,10 +49,28 @@ public class TokenAuthenticator implements Authenticator {
         // Call refresh endpoint synchronously
         try {
             OkHttpClient client = new OkHttpClient();
-            String json = "{\"refreshToken\":\"" + refreshToken + "\"}";
+            // BUG #13 FIX: ghép URL an toàn — đảm bảo BASE_URL kết thúc bằng "/"
+            // trước khi nối "auth/refresh". Trước đây nếu ai đó cấu hình BASE_URL
+            // không có trailing slash, URL sẽ thiếu "/" giữa segment.
+            // Ngoài ra dùng JSONObject để escape refreshToken đúng cách (tránh
+            // lỗi nếu token có ký tự đặc biệt như backslash hoặc dấu nháy kép).
+            String base = com.lingua.app.BuildConfig.BASE_URL;
+            if (base == null) base = "";
+            if (!base.endsWith("/")) base += "/";
+            String refreshUrl = base + "auth/refresh";
+
+            String json;
+            try {
+                org.json.JSONObject payload = new org.json.JSONObject();
+                payload.put("refreshToken", refreshToken);
+                json = payload.toString();
+            } catch (org.json.JSONException je) {
+                // Fallback (very unlikely path).
+                json = "{\"refreshToken\":\"" + refreshToken.replace("\\", "\\\\").replace("\"", "\\\"") + "\"}";
+            }
             RequestBody body = RequestBody.create(json, MediaType.parse("application/json"));
             Request refreshReq = new Request.Builder()
-                    .url(com.lingua.app.BuildConfig.BASE_URL + "auth/refresh")
+                    .url(refreshUrl)
                     .post(body)
                     .build();
 

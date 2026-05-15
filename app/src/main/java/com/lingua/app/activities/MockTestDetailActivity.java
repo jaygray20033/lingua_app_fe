@@ -293,6 +293,19 @@ public class MockTestDetailActivity extends AppCompatActivity {
                     i.putExtra("xpEarned", result.xpEarned);
                     i.putExtra("passed", result.passed);
                     startActivity(i);
+
+                    // BUG #20 FIX: nếu là placement test, gửi kết quả level đề
+                    // xuất về caller (MockTestActivity → OnboardingActivity).
+                    boolean isPlacement = getIntent().getBooleanExtra("placement", false);
+                    if (isPlacement) {
+                        String suggestedLevel = suggestLevelFromScore(
+                                result.getScore(),
+                                getIntent().getStringExtra("language"));
+                        Intent back = new Intent();
+                        back.putExtra("level", suggestedLevel);
+                        back.putExtra("scorePercent", result.getScore());
+                        setResult(RESULT_OK, back);
+                    }
                     finish();
                 } else {
                     Toast.makeText(MockTestDetailActivity.this, "Không nộp được bài", Toast.LENGTH_SHORT).show();
@@ -302,6 +315,27 @@ public class MockTestDetailActivity extends AppCompatActivity {
                 Toast.makeText(MockTestDetailActivity.this, "Lỗi: " + t.getMessage(), Toast.LENGTH_SHORT).show();
             }
         });
+    }
+
+    /**
+     * BUG #20 FIX: từ điểm % bài placement → suy ra level đề xuất theo từng ngôn ngữ.
+     * Ngưỡng đơn giản: <20% → mức thấp nhất, 20–40% → +1, ... ≥80% → mức cao nhất.
+     */
+    private String suggestLevelFromScore(int scorePercent, String language) {
+        String[] levels;
+        if ("en".equals(language)) {
+            levels = new String[]{"A1", "A2", "B1", "B2", "C1", "C2"};
+        } else if ("zh".equals(language)) {
+            levels = new String[]{"HSK1", "HSK2", "HSK3", "HSK4", "HSK5", "HSK6"};
+        } else if ("ko".equals(language)) {
+            levels = new String[]{"TOPIK1", "TOPIK2", "TOPIK3", "TOPIK4", "TOPIK5", "TOPIK6"};
+        } else {
+            levels = new String[]{"N5", "N4", "N3", "N2", "N1"};
+        }
+        int idx = (int) Math.floor(scorePercent / 100.0 * levels.length);
+        if (idx < 0) idx = 0;
+        if (idx >= levels.length) idx = levels.length - 1;
+        return levels[idx];
     }
 
     private void playAudio(String url) {

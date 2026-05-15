@@ -210,3 +210,103 @@ npm run dev    # khởi động server với nodemon (cần MySQL + Redis)
 ---
 
 *Cập nhật: 08/05/2026 — Tất cả 14 bug từ TODO_lingua_android_updated.md đã được xử lý.*
+
+---
+
+## 🆕 PHẦN 8 — BUG BATCH MỚI (2026-05-15)
+
+### 🔴 CRITICAL
+
+#### ✅ #8. AIRoleplayActivity — OkHttp SSE Connection KHÔNG được đóng
+- **File:** `lingua-android/.../activities/AIRoleplayActivity.java`
+- **Vấn đề:** Khi user thoát màn hình AI roleplay giữa chừng khi đang streaming response, OkHttp SSE connection tiếp tục chạy nền, giữ network socket và callback reference vào Activity đã destroy → memory leak + crash tiềm ẩn.
+- **Sửa:**
+  - Thêm field `private EventSource activeEventSource;` và `private OkHttpClient activeSseClient;`.
+  - Gán `activeEventSource = factory.newEventSource(...)` thay vì discard return value.
+  - Trong `onDestroy()`: `activeEventSource.cancel()`, `activeSseClient.dispatcher().cancelAll()`, `connectionPool().evictAll()`.
+  - Trong `streamAIResponse()`: cancel SSE cũ trước khi tạo SSE mới (tránh chồng connection).
+
+#### ✅ #9. MainActivity — SwipeRefresh ẩn spinner trước khi data load xong
+- **File:** `lingua-android/.../activities/MainActivity.java`
+- **Vấn đề:** Spinner biến mất sau 800ms cố định dù 4 API call chưa hoàn thành (đặc biệt trên mạng 3G chậm). User tưởng data đã refresh nhưng vẫn xem dữ liệu cũ.
+- **Sửa:** Dùng `AtomicInteger pending = new AtomicInteger(4)`; mỗi loader nhận thêm `Runnable onDone` và gọi `pending.decrementAndGet()`. Khi đếm về 0 mới ẩn spinner. Có safety timeout 15s. Mỗi `loadStats/loadEnrollments/loadDailyQuests/loadReviewQueue` được tạo overload `(Runnable onDone)`.
+
+### 🟠 HIGH
+
+#### ✅ #10. LoginActivity — Đăng nhập lại không kiểm tra `onboarded`
+- **File:** `lingua-android/.../activities/LoginActivity.java`
+- **Vấn đề:** Nếu user đăng nhập trên thiết bị mới (hoặc sau khi xóa data), `onboarded = false` nhưng app vẫn vào MainActivity — bỏ qua bước onboarding.
+- **Sửa:** Trong `goToMain()` đọc `SharedPreferences(OnboardingActivity.PREFS).getBoolean(KEY_ONBOARDED, false)`; nếu false → mở `OnboardingActivity.class` thay vì `MainActivity.class`.
+
+#### ✅ #11. MainActivity — onResume() gọi 4 API requests mỗi lần
+- **File:** `lingua-android/.../activities/MainActivity.java`
+- **Vấn đề:** Mỗi lần user quay về Home (kể cả khi chỉ tắt màn hình rồi bật lại), 4 API requests đồng thời được kích hoạt → tốn pin, tốn dữ liệu, có thể rate-limit.
+- **Sửa:** Thêm `private long lastRefreshMs` + `REFRESH_COOLDOWN_MS = 30_000L`. Trong `onResume()` nếu `now - lastRefreshMs < 30s` → bỏ qua. SwipeRefresh cũng cập nhật `lastRefreshMs`.
+
+#### ✅ #12. QuestAdapter Click — không kiểm tra quest đã hoàn thành
+- **File:** `lingua-android/.../activities/MainActivity.java` (callback của QuestAdapter)
+- **Vấn đề:** Mọi quest đều có thể claim kể cả khi chưa hoàn thành; backend trả lỗi nhưng app im lặng.
+- **Sửa:** Kiểm tra `quest.completed != 1` → Toast "Chưa hoàn thành nhiệm vụ"; `quest.claimedAt != null` → Toast "Đã nhận thưởng". Thêm Toast hiển thị message error từ backend + Toast network error.
+
+#### ✅ #13. TokenAuthenticator — URL ghép nối có thể sai
+- **File:** `lingua-android/.../api/TokenAuthenticator.java`
+- **Vấn đề:** Nếu ai đó cấu hình `BASE_URL` không có trailing slash, URL refresh sẽ thiếu `/` giữa segment. Thêm vào đó, refreshToken đang được nhúng trực tiếp vào JSON string thủ công — không an toàn nếu token chứa `\` hoặc `"`.
+- **Sửa:** Kiểm tra `if (!base.endsWith("/")) base += "/"`. Dùng `JSONObject.put("refreshToken", refreshToken)` để escape đúng cách.
+
+### 🟡 MEDIUM
+
+#### ✅ #14. FlashcardActivity — advanceHandler không bị cancel trong onPause()
+- **File:** `lingua-android/.../activities/FlashcardActivity.java`
+- **Vấn đề:** Nếu user nhấn Home (onPause) và quay lại sau khi delay 400ms đã chạy, card có thể nhảy tự động không như mong đợi.
+- **Sửa:** Override `onPause()` gọi `advanceHandler.removeCallbacksAndMessages(null)`. Vẫn giữ logic cancel trong `onDestroy()`.
+
+#### ✅ #15. ShadowingActivity — btnPrev không có click listener
+- **File:** `lingua-android/.../activities/ShadowingActivity.java`
+- **Trạng thái:** Đã được fix trong code hiện tại (lines 101-105). Verified.
+
+#### ✅ #16. ProfileActivity — Avatar load không hoạt động
+- **File:** `lingua-android/.../activities/ProfileActivity.java`, `app/build.gradle`
+- **Vấn đề:** `imgAvatar` luôn ẩn, `tvAvatar` (emoji) luôn hiện kể cả khi user đã upload avatar.
+- **Sửa:**
+  - Thêm dependency: `implementation 'com.github.bumptech.glide:glide:4.16.0'`.
+  - Trong `loadProfile()` callback: `Glide.with(this).load(u.avatarUrl).circleCrop().placeholder(...).error(...).into(imgAvatar);` rồi `imgAvatar.setVisibility(VISIBLE); tvAvatar.setVisibility(GONE);` Có try/catch fallback.
+
+### 🟢 LOW
+
+#### ✅ #17. SplashActivity — Delay 1.5 giây cố định
+- **File:** `lingua-android/.../activities/SplashActivity.java`
+- **Sửa:** Giảm từ `1500` xuống `800` ms để cải thiện cảm giác khởi động nhanh.
+
+#### ✅ #18. VocabularyActivity — MediaPlayer thiếu onErrorListener
+- **File:** `lingua-android/.../activities/VocabularyActivity.java`
+- **Vấn đề:** Nếu URL audio không hợp lệ, `prepareAsync()` gặp lỗi nhưng không có handler → MediaPlayer ở trạng thái error, lần gọi tiếp theo có thể crash.
+- **Sửa:** Thêm `setOnErrorListener((mp, what, extra) -> { release; fallback TTS; return true; })`. Thêm `setOnCompletionListener` để release sau khi phát xong. Tách phần TTS ra method `fallbackToTts(Word)` để tái sử dụng.
+
+#### ✅ #19. Code comment tiếng Pháp lẫn tiếng Việt
+- **Files:**
+  - `StatisticsActivity.java` (4 đoạn)
+  - `ProfileActivity.java` (3 đoạn)
+  - `ShadowingActivity.java` (1 đoạn)
+  - `FlashcardActivity.java` (1 đoạn)
+  - `PracticeActivity.java` (1 đoạn)
+  - `OnboardingActivity.java` (1 đoạn)
+- **Sửa:** Dịch tất cả comment tiếng Pháp sang tiếng Việt, đánh dấu rõ `(BUG #19 FIX: comment tiếng Pháp → tiếng Việt.)` để truy vết.
+
+#### ✅ #20. OnboardingActivity — Placement test không cập nhật `selectedLevel`
+- **Files:**
+  - `lingua-android/.../activities/OnboardingActivity.java`
+  - `lingua-android/.../activities/MockTestActivity.java`
+  - `lingua-android/.../activities/MockTestDetailActivity.java`
+- **Vấn đề:** Khi user bấm "Làm bài kiểm tra đầu vào", `MockTestActivity` chỉ `startActivity()` — không có cách trả kết quả về Onboarding → `selectedLevel` không bao giờ được cập nhật từ kết quả test.
+- **Sửa:**
+  - `PlacementFragment` dùng `startActivityForResult(intent, REQ_PLACEMENT_TEST=7321)` và override `onActivityResult` để đọc extra `"level"` rồi cập nhật `host.selectedLevel` + highlight item tương ứng + enable nút Hoàn thành.
+  - `MockTestActivity` propagate cờ `"placement"` xuống `MockTestDetailActivity` qua `startActivityForResult(REQ_PLACEMENT_DETAIL=9911)`. Khi nhận kết quả → `setResult(RESULT_OK, ...)` về Onboarding.
+  - `MockTestDetailActivity.submit()` khi `placement=true` → suy ra level đề xuất từ `scorePercent` (helper `suggestLevelFromScore`) theo bảng level của ngôn ngữ (`ja: N5-N1`, `en: A1-C2`, `zh: HSK1-HSK6`, `ko: TOPIK1-TOPIK6`) và `setResult(RESULT_OK, intent("level", suggested))`.
+
+#### ✅ #21. LessonActivity — File gần như rỗng
+- **File:** `lingua-android/.../activities/LessonActivity.java`
+- **Trạng thái:** File đã có implementation redirect sang `PracticeActivity` với `lessonId`. Không cần sửa.
+
+---
+
+*Cập nhật: 15/05/2026 — Thêm 13 bug fixes mới (#8–#20). Tổng cộng 27 bug đã được xử lý.*

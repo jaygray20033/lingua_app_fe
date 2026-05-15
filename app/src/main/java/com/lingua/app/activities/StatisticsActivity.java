@@ -70,7 +70,8 @@ public class StatisticsActivity extends AppCompatActivity {
         loadStats();
     }
 
-    /** Stockage des données analytics retournées par /gamification/analytics. */
+    /** BUG #19 FIX: Comment tiếng Pháp → tiếng Việt.
+     *  Lưu trữ dữ liệu analytics trả về từ /gamification/analytics. */
     private Map<String, Object> analyticsData;
 
     private void loadStats() {
@@ -93,12 +94,12 @@ public class StatisticsActivity extends AppCompatActivity {
                         v -> loadStats()));
             }
         });
-        // TODO 1.1 + 3.4 — appel additionnel à /gamification/analytics pour
-        // les statistiques avancées (XP par jour sur 30 jours, jours actifs,
-        // tendance %).
+        // BUG #19 FIX: comment tiếng Pháp → tiếng Việt.
+        // TODO 1.1 + 3.4 — gọi thêm /gamification/analytics để lấy thống kê
+        // nâng cao (XP theo ngày trong 30 ngày, ngày hoạt động, tỉ lệ xu hướng %).
         loadAnalytics();
-        // TODO 1.1 — déclencher l'évaluation côté serveur pour débloquer les
-        // achievements éventuellement franchis (best-effort).
+        // TODO 1.1 — kích hoạt đánh giá phía server để mở khóa các achievement
+        // user có thể đã đạt (best-effort).
         apiService.evaluateAchievements().enqueue(new Callback<ApiResponse<Map<String, Object>>>() {
             @Override public void onResponse(Call<ApiResponse<Map<String, Object>>> c, Response<ApiResponse<Map<String, Object>>> r) {}
             @Override public void onFailure(Call<ApiResponse<Map<String, Object>>> c, Throwable t) {}
@@ -225,15 +226,16 @@ public class StatisticsActivity extends AppCompatActivity {
     }
 
     /**
-     * BUG B14 FIX: génère une distribution XP hebdomadaire DÉTERMINISTE
-     * (basée sur totalXp et todayXp). Avant on utilisait Math.random() →
-     * le graphique changeait à chaque rotation d'écran.
+     * BUG B14 FIX: sinh phân bố XP theo tuần KHÔNG NGẪU NHIÊN (dựa trên totalXp
+     * và todayXp). Trước đây dùng Math.random() → biểu đồ thay đổi mỗi lần
+     * xoay màn hình.
      *
-     * Si /gamification/analytics a renvoyé `dailyXp`, on l'utilise en priorité.
+     * Nếu /gamification/analytics đã trả về `dailyXp`, ta ưu tiên dùng giá trị này.
+     * (BUG #19 FIX: comment tiếng Pháp → tiếng Việt.)
      */
     @SuppressWarnings("unchecked")
     private int[] synthesizeWeekly(int todayXp, long totalXp) {
-        // Priorité: vraies données de /gamification/analytics
+        // Ưu tiên: dữ liệu thật từ /gamification/analytics
         if (analyticsData != null) {
             try {
                 Object daily = analyticsData.get("dailyXp");
@@ -258,10 +260,11 @@ public class StatisticsActivity extends AppCompatActivity {
                 }
             } catch (Exception ignore) {}
         }
-        // Fallback déterministe: pattern fixe basé sur la moyenne journalière.
+        // BUG #19 FIX: comment tiếng Pháp → tiếng Việt.
+        // Fallback xác định: pattern cố định dựa trên trung bình mỗi ngày.
         int[] out = new int[7];
         int avg = Math.max(0, (int) (totalXp / 30));
-        // Pattern reproductible (semaine type: WE plus chargé)
+        // Pattern có thể tái tạo (kiểu tuần: cuối tuần học nhiều hơn)
         double[] pattern = {0.7, 0.9, 0.8, 1.0, 0.9, 1.2, 1.1};
         for (int i = 0; i < 6; i++) out[i] = (int) (avg * pattern[i]);
         out[6] = todayXp;

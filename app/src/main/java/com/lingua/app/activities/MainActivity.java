@@ -26,6 +26,7 @@ import com.lingua.app.utils.SessionManager;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -58,6 +59,11 @@ public class MainActivity extends AppCompatActivity {
     private final List<DailyQuest> questPreview = new ArrayList<>();
     private QuestAdapter questAdapter;
 
+    // BUG #11 FIX: cooldown 30s cho onResume() để tránh gọi 4 API requests mỗi
+    // lần user quay về Home (kể cả khi chỉ tắt màn hình rồi bật lại).
+    private static final long REFRESH_COOLDOWN_MS = 30_000L;
+    private long lastRefreshMs = 0;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -86,15 +92,38 @@ public class MainActivity extends AppCompatActivity {
 
         recyclerQuestPreview.setLayoutManager(new LinearLayoutManager(this));
         questAdapter = new QuestAdapter(questPreview, (quest, position) -> {
+            // BUG #12 FIX: kiểm tra quest đã hoàn thành & chưa claim trước khi
+            // gọi API. Trước đây mọi quest đều có thể claim → backend trả lỗi
+            // nhưng app không có phản hồi phù hợp cho user.
+            if (quest.completed != 1) {
+                Toast.makeText(MainActivity.this,
+                        "⏳ Chưa hoàn thành nhiệm vụ này!", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            if (quest.claimedAt != null) {
+                Toast.makeText(MainActivity.this,
+                        "✅ Nhiệm vụ này đã được nhận thưởng!", Toast.LENGTH_SHORT).show();
+                return;
+            }
             // Allow claiming straight from the home preview when completed.
             apiService.claimQuest(quest.id).enqueue(new Callback<ApiResponse<Object>>() {
                 @Override public void onResponse(Call<ApiResponse<Object>> c, Response<ApiResponse<Object>> r) {
                     if (r.isSuccessful() && r.body() != null && r.body().isSuccess()) {
                         Toast.makeText(MainActivity.this, "🎉 +" + quest.rewardGems + " 💎", Toast.LENGTH_SHORT).show();
                         loadDailyQuests();
+                    } else {
+                        // BUG #12 FIX: hiển thị lỗi từ backend thay vì im lặng.
+                        String msg = (r.body() != null && r.body().getMessage() != null)
+                                ? r.body().getMessage()
+                                : "Không nhận được thưởng. Vui lòng thử lại.";
+                        Toast.makeText(MainActivity.this, msg, Toast.LENGTH_SHORT).show();
                     }
                 }
-                @Override public void onFailure(Call<ApiResponse<Object>> c, Throwable t) {}
+                @Override public void onFailure(Call<ApiResponse<Object>> c, Throwable t) {
+                    // BUG #12 FIX: thông báo network error cho user.
+                    Toast.makeText(MainActivity.this,
+                            "Lỗi kết nối: " + t.getMessage(), Toast.LENGTH_SHORT).show();
+                }
             });
         });
         recyclerQuestPreview.setAdapter(questAdapter);
@@ -119,14 +148,29 @@ public class MainActivity extends AppCompatActivity {
         }
 
         // 6.3 FIX: pull-to-refresh — gọi lại tất cả các loader.
+        // BUG #9 FIX: dùng AtomicInteger đếm callback thay vì ẩn spinner sau
+        // 800ms cố định. Trên mạng 3G chậm spinner biến mất trước khi data
+        // refresh xong → user tưởng đã refresh nhưng vẫn xem dữ liệu cũ.
         androidx.swiperefreshlayout.widget.SwipeRefreshLayout swipe = findViewById(R.id.swipeRefresh);
         if (swipe != null) {
             swipe.setOnRefreshListener(() -> {
-                loadStats();
-                loadEnrollments();
-                loadDailyQuests();
-                loadReviewQueue();
-                swipe.postDelayed(() -> swipe.setRefreshing(false), 800);
+                final AtomicInteger pending = new AtomicInteger(4);
+                final Runnable onDone = () -> {
+                    if (pending.decrementAndGet() <= 0) {
+                        swipe.setRefreshing(false);
+                    }
+                };
+                loadStats(onDone);
+                loadEnrollments(onDone);
+                loadDailyQuests(onDone);
+                loadReviewQueue(onDone);
+                // Safety timeout: nếu sau 15s vẫn còn pending thì ẩn spinner
+                // (tránh trường hợp kẹt spinner do timeout network).
+                swipe.postDelayed(() -> {
+                    if (swipe.isRefreshing()) swipe.setRefreshing(false);
+                }, 15_000);
+                // Đồng thời reset cooldown để onResume không gọi lại ngay.
+                lastRefreshMs = System.currentTimeMillis();
             });
         }
 
@@ -165,6 +209,14 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        // BUG #11 FIX: cooldown 30s để tránh gọi 4 API requests mỗi lần user
+        // quay về Home (kể cả khi chỉ tắt màn hình rồi bật lại, hoặc quay từ
+        // Settings về). Tốn pin, tốn dữ liệu, có thể bị rate-limit.
+        long now = System.currentTimeMillis();
+        if (now - lastRefreshMs < REFRESH_COOLDOWN_MS) {
+            return;
+        }
+        lastRefreshMs = now;
         loadStats();
         loadEnrollments();
         loadDailyQuests();
@@ -176,7 +228,10 @@ public class MainActivity extends AppCompatActivity {
     // -----------------------------------------------------------------------
     private List<Map<String, Object>> reviewQueueCache = new ArrayList<>();
 
-    private void loadReviewQueue() {
+    private void loadReviewQueue() { loadReviewQueue(null); }
+
+    // BUG #9 FIX: nhận onDone callback để báo hoàn thành cho SwipeRefresh.
+    private void loadReviewQueue(Runnable onDone) {
         apiService.getReviewQueue().enqueue(new Callback<ApiResponse<List<Map<String, Object>>>>() {
             @Override
             public void onResponse(Call<ApiResponse<List<Map<String, Object>>>> call,
@@ -185,9 +240,12 @@ public class MainActivity extends AppCompatActivity {
                     List<Map<String, Object>> data = r.body().getData();
                     runOnUiThread(() -> updateReviewCard(data));
                 }
+                if (onDone != null) runOnUiThread(onDone);
             }
             @Override
-            public void onFailure(Call<ApiResponse<List<Map<String, Object>>>> call, Throwable t) {}
+            public void onFailure(Call<ApiResponse<List<Map<String, Object>>>> call, Throwable t) {
+                if (onDone != null) runOnUiThread(onDone);
+            }
         });
     }
 
@@ -229,7 +287,10 @@ public class MainActivity extends AppCompatActivity {
         startActivity(i);
     }
 
-    private void loadStats() {
+    private void loadStats() { loadStats(null); }
+
+    // BUG #9 FIX: nhận onDone callback để báo hoàn thành cho SwipeRefresh.
+    private void loadStats(Runnable onDone) {
         apiService.getMyStats().enqueue(new Callback<ApiResponse<GamificationStats>>() {
             @Override
             public void onResponse(Call<ApiResponse<GamificationStats>> call, Response<ApiResponse<GamificationStats>> resp) {
@@ -250,10 +311,12 @@ public class MainActivity extends AppCompatActivity {
                         tvDailyGoalText.setText(today + " / " + goal + " XP");
                     });
                 }
+                if (onDone != null) runOnUiThread(onDone);
             }
             @Override public void onFailure(Call<ApiResponse<GamificationStats>> call, Throwable t) {
                 // U20 FIX: Snackbar voi action "Thu lai" cho loadStats.
                 runOnUiThread(() -> showRetrySnackbar("Khong tai duoc thong tin tien do", v -> loadStats()));
+                if (onDone != null) runOnUiThread(onDone);
             }
         });
     }
@@ -263,7 +326,10 @@ public class MainActivity extends AppCompatActivity {
                 .getInt("daily_goal_xp", DEFAULT_DAILY_GOAL_XP);
     }
 
-    private void loadEnrollments() {
+    private void loadEnrollments() { loadEnrollments(null); }
+
+    // BUG #9 FIX: nhận onDone callback để báo hoàn thành cho SwipeRefresh.
+    private void loadEnrollments(Runnable onDone) {
         apiService.getMyEnrollments().enqueue(new Callback<ApiResponse<List<Enrollment>>>() {
             @Override public void onResponse(Call<ApiResponse<List<Enrollment>>> c, Response<ApiResponse<List<Enrollment>>> r) {
                 if (r.isSuccessful() && r.body() != null && r.body().isSuccess()) {
@@ -276,6 +342,7 @@ public class MainActivity extends AppCompatActivity {
                         configureContinueButton();
                     });
                 }
+                if (onDone != null) runOnUiThread(onDone);
             }
             @Override public void onFailure(Call<ApiResponse<List<Enrollment>>> c, Throwable t) {
                 // U20 FIX: Snackbar voi action "Thu lai" thay vi de user mac ket.
@@ -283,6 +350,7 @@ public class MainActivity extends AppCompatActivity {
                     tvEnrollmentsEmpty.setVisibility(View.VISIBLE);
                     showRetrySnackbar("Khong tai duoc danh sach khoa hoc", v -> loadEnrollments());
                 });
+                if (onDone != null) runOnUiThread(onDone);
             }
         });
     }
@@ -331,7 +399,10 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    private void loadDailyQuests() {
+    private void loadDailyQuests() { loadDailyQuests(null); }
+
+    // BUG #9 FIX: nhận onDone callback để báo hoàn thành cho SwipeRefresh.
+    private void loadDailyQuests(Runnable onDone) {
         apiService.getDailyQuests().enqueue(new Callback<ApiResponse<List<DailyQuest>>>() {
             @Override public void onResponse(Call<ApiResponse<List<DailyQuest>>> c, Response<ApiResponse<List<DailyQuest>>> r) {
                 if (r.isSuccessful() && r.body() != null && r.body().isSuccess()) {
@@ -345,8 +416,11 @@ public class MainActivity extends AppCompatActivity {
                         questAdapter.notifyDataSetChanged();
                     });
                 }
+                if (onDone != null) runOnUiThread(onDone);
             }
-            @Override public void onFailure(Call<ApiResponse<List<DailyQuest>>> c, Throwable t) {}
+            @Override public void onFailure(Call<ApiResponse<List<DailyQuest>>> c, Throwable t) {
+                if (onDone != null) runOnUiThread(onDone);
+            }
         });
     }
 

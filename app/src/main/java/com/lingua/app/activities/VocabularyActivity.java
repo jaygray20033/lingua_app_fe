@@ -342,14 +342,38 @@ public class VocabularyActivity extends AppCompatActivity implements TextToSpeec
         // Prefer audioUrl if available
         if (word.getAudioUrl() != null && !word.getAudioUrl().isEmpty()) {
             try {
-                if (mediaPlayer != null) { mediaPlayer.release(); }
+                if (mediaPlayer != null) {
+                    try { mediaPlayer.release(); } catch (Exception ignore) {}
+                    mediaPlayer = null;
+                }
                 mediaPlayer = new android.media.MediaPlayer();
                 mediaPlayer.setDataSource(word.getAudioUrl());
                 mediaPlayer.prepareAsync();
                 mediaPlayer.setOnPreparedListener(mp -> mp.start());
+                // BUG #18 FIX: thêm onErrorListener để tránh MediaPlayer kẹt ở
+                // trạng thái error khi audioUrl không hợp lệ. Trước đây thiếu
+                // handler → prepareAsync() lỗi nhưng instance vẫn giữ, lần gọi
+                // tiếp theo có thể crash. Trả true để consume error, release
+                // resource, và fallback sang TTS.
+                mediaPlayer.setOnErrorListener((mp, what, extra) -> {
+                    try { mp.release(); } catch (Exception ignore) {}
+                    mediaPlayer = null;
+                    // Fallback sang TTS khi MediaPlayer lỗi
+                    fallbackToTts(word);
+                    return true;
+                });
+                // BUG #18 FIX: release sau khi phát xong để không giữ resource.
+                mediaPlayer.setOnCompletionListener(mp -> {
+                    try { mp.release(); } catch (Exception ignore) {}
+                    mediaPlayer = null;
+                });
                 return;
             } catch (Exception e) { /* fall through to TTS */ }
         }
+        fallbackToTts(word);
+    }
+
+    private void fallbackToTts(Word word) {
         if (tts == null) return;
         Locale locale;
         switch (word.getLanguageCode() != null ? word.getLanguageCode() : "ja") {

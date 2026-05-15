@@ -139,7 +139,14 @@ public class LoginActivity extends AppCompatActivity {
     }
 
     private void goToMain() {
-        startActivity(new Intent(this, MainActivity.class));
+        // BUG #10 FIX: kiểm tra SharedPreferences("onboarded") trước khi vào
+        // MainActivity. Nếu user đăng nhập trên thiết bị mới (hoặc sau khi xoá
+        // data), onboarded = false nhưng app cũ vẫn vào MainActivity → bỏ qua
+        // bước onboarding. Chỉ SplashActivity mới kiểm tra onboarded đúng cách.
+        boolean onboarded = getSharedPreferences(OnboardingActivity.PREFS, MODE_PRIVATE)
+                .getBoolean(OnboardingActivity.KEY_ONBOARDED, false);
+        Class<?> target = onboarded ? MainActivity.class : OnboardingActivity.class;
+        startActivity(new Intent(this, target));
         finish();
     }
 

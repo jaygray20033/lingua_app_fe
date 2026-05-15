@@ -870,7 +870,8 @@ public class PracticeActivity extends AppCompatActivity implements TextToSpeech.
         });
     }
 
-    /** BUG B4 FIX: backend lit `event` / `value` (et non `type` / `amount`). */
+    /** BUG B4 FIX: backend đọc `event` / `value` (chứ không phải `type` / `amount`).
+     *  (BUG #19 FIX: comment tiếng Pháp → tiếng Việt.) */
     private void triggerLessonCompleteQuest() {
         Map<String, Object> body = new HashMap<>();
         body.put("event", "LESSON_COMPLETE");

@@ -46,6 +46,13 @@ public class AIRoleplayActivity extends AppCompatActivity implements TextToSpeec
     private List<RoleplayScenario> scenarios = new ArrayList<>();
     private boolean isMicActive = false;
 
+    // BUG #8 FIX: giữ reference EventSource để có thể cancel trong onDestroy.
+    // Nếu user thoát màn hình AI giữa chừng khi đang streaming response, OkHttp
+    // SSE connection sẽ tiếp tục chạy nền → memory leak + callback reference
+    // vào Activity đã destroy + giữ network socket.
+    private EventSource activeEventSource;
+    private OkHttpClient activeSseClient;
+
     // U6 FIX: keys used to restore chat history across rotation / process death.
     private static final String STATE_MESSAGES_ROLE = "chat_roles";
     private static final String STATE_MESSAGES_CONTENT = "chat_contents";
@@ -241,10 +248,18 @@ public class AIRoleplayActivity extends AppCompatActivity implements TextToSpeec
         String url = ApiClient.getClient(this).baseUrl().toString() + "ai/sessions/" + sessionId + "/chat";
         String token = SessionManager.getInstance(this).getAccessToken();
 
+        // BUG #8 FIX: cancel previous SSE if still streaming, để tránh nhiều
+        // connection chồng chéo khi user gửi nhiều tin nhắn liên tiếp.
+        if (activeEventSource != null) {
+            try { activeEventSource.cancel(); } catch (Exception ignore) {}
+            activeEventSource = null;
+        }
+
         OkHttpClient sseClient = new OkHttpClient.Builder()
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(60, TimeUnit.SECONDS)
             .build();
+        activeSseClient = sseClient;
 
         // BUG B16 FIX: build the JSON body via JSONObject instead of manual string
         // concatenation. The previous code only escaped double-quotes, so any newline,
@@ -274,7 +289,8 @@ public class AIRoleplayActivity extends AppCompatActivity implements TextToSpeec
         final String[] msgId = {null};
 
         EventSource.Factory factory = EventSources.createFactory(sseClient);
-        factory.newEventSource(request, new EventSourceListener() {
+        // BUG #8 FIX: lưu reference vào activeEventSource thay vì discard.
+        activeEventSource = factory.newEventSource(request, new EventSourceListener() {
             @Override
             public void onEvent(EventSource eventSource, String id, String type, String data) {
                 try {
@@ -412,6 +428,20 @@ public class AIRoleplayActivity extends AppCompatActivity implements TextToSpeec
     protected void onDestroy() {
         if (tts != null) { tts.stop(); tts.shutdown(); }
         if (speechRecognizer != null) { speechRecognizer.destroy(); }
+        // BUG #8 FIX: cancel SSE connection để tránh memory leak + crash khi
+        // streaming response trả về sau khi Activity đã destroy.
+        if (activeEventSource != null) {
+            try { activeEventSource.cancel(); } catch (Exception ignore) {}
+            activeEventSource = null;
+        }
+        if (activeSseClient != null) {
+            try {
+                activeSseClient.dispatcher().cancelAll();
+                activeSseClient.dispatcher().executorService().shutdown();
+                activeSseClient.connectionPool().evictAll();
+            } catch (Exception ignore) {}
+            activeSseClient = null;
+        }
         super.onDestroy();
     }
 
