@@ -35,19 +35,33 @@
         <activity android:name=".activities.LoginActivity" android:exported="false"/>
         <activity android:name=".activities.RegisterActivity" android:exported="false"/>
         <activity android:name=".activities.OnboardingActivity" android:exported="false"/>
-        <activity android:name=".activities.MainActivity" android:exported="false"/>
-        <activity android:name=".activities.VocabularyActivity" android:exported="false"/>
+        <!-- BUG 4 FIX: launchMode="singleTop" cho các màn hình bottom-nav chính
+             để tránh tạo instance mới mỗi khi user chuyển tab. Trước đây bấm
+             Home → Vocab → Home → Vocab → AI sẽ tạo back stack 5 activity,
+             bấm Back sẽ quay lại theo thứ tự ngược thay vì về Home. -->
+        <activity android:name=".activities.MainActivity"
+            android:exported="false"
+            android:launchMode="singleTop"/>
+        <activity android:name=".activities.VocabularyActivity"
+            android:exported="false"
+            android:launchMode="singleTop"/>
         <activity android:name=".activities.WordDetailActivity" android:exported="false"/>
         <activity android:name=".activities.PracticeActivity" android:exported="false"/>
         <activity android:name=".activities.LessonActivity" android:exported="false"/>
         <activity android:name=".activities.LessonResultActivity" android:exported="false"/>
         <activity android:name=".activities.FlashcardActivity" android:exported="false"/>
-        <activity android:name=".activities.SrsDeckPickerActivity" android:exported="false"/>
+        <activity android:name=".activities.SrsDeckPickerActivity"
+            android:exported="false"
+            android:launchMode="singleTop"/>
         <activity android:name=".activities.ShadowingActivity" android:exported="false"/>
-        <activity android:name=".activities.AIRoleplayActivity" android:exported="false"/>
+        <activity android:name=".activities.AIRoleplayActivity"
+            android:exported="false"
+            android:launchMode="singleTop"/>
         <activity android:name=".activities.CourseDetailActivity" android:exported="false"/>
         <activity android:name=".activities.MyCoursesActivity" android:exported="false"/>
-        <activity android:name=".activities.ProfileActivity" android:exported="false"/>
+        <activity android:name=".activities.ProfileActivity"
+            android:exported="false"
+            android:launchMode="singleTop"/>
         <activity android:name=".activities.LeaderboardActivity" android:exported="false"/>
         <activity android:name=".activities.AchievementsActivity" android:exported="false"/>
         <activity android:name=".activities.QuestsActivity" android:exported="false"/>

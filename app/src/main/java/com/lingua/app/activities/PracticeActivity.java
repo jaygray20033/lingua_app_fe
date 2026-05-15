@@ -74,6 +74,12 @@ public class PracticeActivity extends AppCompatActivity implements TextToSpeech.
     // GC trên các thiết bị RAM thấp → memory/resource leak và có thể crash.
     private android.media.MediaPlayer currentMediaPlayer = null;
 
+    // BUG 6 FIX: đo thời gian trả lời thực tế cho từng bài tập. Trước đây
+    // timeMs được hardcode = 5000 cho mọi câu trả lời → backend nhận toàn bộ
+    // là 5 giây bất kể user trả lời trong 0.5s hay 50s → metric "tốc độ phản
+    // hồi" và adaptive difficulty dựa trên tốc độ đều vô nghĩa.
+    private long exerciseStartMs = 0L;
+
     // Sentence-order state
     private final List<String> orderTokens = new ArrayList<>();
     private final List<String> orderAnswer = new ArrayList<>();
@@ -213,6 +219,7 @@ public class PracticeActivity extends AppCompatActivity implements TextToSpeech.
     }
 
     private void loadExercises() {
+        progressBar.setVisibility(View.VISIBLE);
         apiService.getLessonExercises(lessonId).enqueue(new Callback<ApiResponse<LessonData>>() {
             @Override
             public void onResponse(Call<ApiResponse<LessonData>> call, Response<ApiResponse<LessonData>> response) {
@@ -222,20 +229,55 @@ public class PracticeActivity extends AppCompatActivity implements TextToSpeech.
                     exercises.clear();
                     if (data.exercises != null) exercises.addAll(data.exercises);
                     runOnUiThread(() -> {
-                        if (!exercises.isEmpty()) showExercise(0);
+                        if (!exercises.isEmpty()) {
+                            showExercise(0);
+                        } else {
+                            // BUG 3 FIX: response thành công nhưng exercises rỗng cũng
+                            // phải báo cho user thay vì để màn hình trắng.
+                            showLoadExercisesError("Bài học không có bài tập nào.");
+                        }
                     });
+                } else {
+                    // BUG 3 FIX: response không thành công (404/500/...) phải hiện dialog
+                    // thay vì để màn hình trắng không có nút gì.
+                    String msg = response.body() != null && response.body().getMessage() != null
+                            ? response.body().getMessage()
+                            : "Không tải được bài tập (mã " + response.code() + ")";
+                    showLoadExercisesError(msg);
                 }
             }
             @Override public void onFailure(Call<ApiResponse<LessonData>> call, Throwable t) {
+                // BUG 3 FIX: trước đây onFailure không làm gì cả → progressBar ẩn,
+                // exercises rỗng, showExercise() không bao giờ được gọi → user nhìn
+                // thấy màn hình trắng không có nút gì, không hiểu chuyện gì đang xảy ra
+                // và không có cách retry. Bây giờ hiện dialog với "Thử lại" / "Thoát".
                 progressBar.setVisibility(View.GONE);
+                showLoadExercisesError("Lỗi kết nối: " + t.getMessage());
             }
         });
+    }
+
+    /**
+     * BUG 3 FIX: dialog xử lý lỗi khi không tải được bài tập. Tương tự
+     * showStartLessonError() nhưng cho /lessons/{id}/exercises.
+     */
+    private void showLoadExercisesError(String msg) {
+        new AlertDialog.Builder(PracticeActivity.this)
+                .setTitle("Không tải được bài tập")
+                .setMessage(msg)
+                .setPositiveButton("Thử lại", (d, w) -> loadExercises())
+                .setNegativeButton("Thoát", (d, w) -> finish())
+                .setCancelable(false)
+                .show();
     }
 
     private void showExercise(int index) {
         if (index >= exercises.size()) { showCompletion(); return; }
         currentIndex = index;
         Exercise ex = exercises.get(index);
+
+        // BUG 6 FIX: ghi lại thời điểm bắt đầu để tính elapsed time khi submit.
+        exerciseStartMs = System.currentTimeMillis();
 
         hideAllLayouts();
         tvFeedback.setVisibility(View.GONE);
@@ -616,10 +658,15 @@ public class PracticeActivity extends AppCompatActivity implements TextToSpeech.
             }
         }
 
+        // BUG 6 FIX: tính elapsed time thực tế thay vì hardcode 5000ms. Nếu vì
+        // lý do gì đó exerciseStartMs chưa được khởi tạo (=0), fallback về 0
+        // để backend biết là không đo được, hơn là gửi giá trị giả 5000ms.
+        long elapsed = exerciseStartMs > 0 ? (System.currentTimeMillis() - exerciseStartMs) : 0L;
+
         Map<String, Object> body = new HashMap<>();
         body.put("exerciseId", ex.id);
         body.put("userAnswer", answer);
-        body.put("timeMs", 5000);
+        body.put("timeMs", elapsed);
 
         apiService.submitAnswer(attemptId, body).enqueue(new Callback<ApiResponse<AnswerResult>>() {
             @Override
@@ -655,14 +702,31 @@ public class PracticeActivity extends AppCompatActivity implements TextToSpeech.
                     runOnUiThread(() -> {
                         if (tvHearts != null) tvHearts.setText("❤️ " + currentHearts);
                         if (currentHearts <= 0) {
-                            Toast.makeText(PracticeActivity.this,
-                                    "💔 Đã hết tim! Hãy nghỉ ngơi và thử lại sau.", Toast.LENGTH_LONG).show();
+                            // BUG 5 FIX: trước đây chỉ Toast, không block gì → user
+                            // vẫn bấm Next và học tiếp, XP và quest vẫn tính bình thường,
+                            // gamification "tim" mất ý nghĩa. Bây giờ hiện dialog block
+                            // và không cho tiếp tục.
+                            showOutOfHeartsDialog();
                         }
                     });
                 }
             }
             @Override public void onFailure(Call<ApiResponse<HeartsData>> c, Throwable t) {}
         });
+    }
+
+    /**
+     * BUG 5 FIX: hiển thị dialog block khi user hết tim. Dialog không thể
+     * dismiss bằng cách bấm ra ngoài; chỉ có thể về trang chủ (kết thúc
+     * lesson, không tính XP/quest cho phần còn lại).
+     */
+    private void showOutOfHeartsDialog() {
+        new AlertDialog.Builder(PracticeActivity.this)
+                .setTitle("💔 Hết tim rồi!")
+                .setMessage("Bạn cần chờ tim hồi phục hoặc mua Streak Freeze để tiếp tục.")
+                .setPositiveButton("Về trang chủ", (d, w) -> finish())
+                .setCancelable(false)
+                .show();
     }
 
     private void showFeedback(boolean correct, AnswerResult result) {

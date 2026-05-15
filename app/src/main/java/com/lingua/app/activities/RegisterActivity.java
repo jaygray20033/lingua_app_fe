@@ -64,6 +64,14 @@ public class RegisterActivity extends AppCompatActivity {
             tvError.setVisibility(View.VISIBLE);
             return;
         }
+        // BUG 2 FIX: validate email format giống LoginActivity. Trước đây chỉ kiểm
+        // tra isEmpty() nên user có thể đăng ký với email không hợp lệ (vd "abc@",
+        // "xyzxyz") → server fail hoặc tài khoản không thể đăng nhập lại sau này.
+        if (!android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+            tvError.setText("Email không hợp lệ");
+            tvError.setVisibility(View.VISIBLE);
+            return;
+        }
         if (!password.equals(confirm)) {
             tvError.setText("Mật khẩu xác nhận không khớp");
             tvError.setVisibility(View.VISIBLE);
@@ -91,7 +99,13 @@ public class RegisterActivity extends AppCompatActivity {
                 if (resp.isSuccessful() && resp.body() != null && resp.body().isSuccess()) {
                     AuthData data = resp.body().getData();
                     session.saveSession(data.userId, data.accessToken, data.refreshToken, name, email);
-                    startActivity(new Intent(RegisterActivity.this, MainActivity.class));
+                    // BUG 1 FIX: sau khi đăng ký phải đi qua OnboardingActivity để user
+                    // mới chọn ngôn ngữ mục tiêu, mức độ, và daily XP goal. Trước đây
+                    // app nhảy thẳng vào MainActivity → selectedLanguage = null,
+                    // daily_goal_xp = 0, màn hình học không biết học ngôn ngữ nào.
+                    Intent i = new Intent(RegisterActivity.this, OnboardingActivity.class);
+                    i.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                    startActivity(i);
                     finish();
                 } else {
                     String msg = resp.body() != null ? resp.body().getMessage() : "Đăng ký thất bại";

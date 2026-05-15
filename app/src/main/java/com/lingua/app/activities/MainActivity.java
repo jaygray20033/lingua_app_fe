@@ -138,16 +138,28 @@ public class MainActivity extends AppCompatActivity {
             if (id == R.id.nav_home) {
                 // Already home
             } else if (id == R.id.nav_vocabulary) {
-                startActivity(new Intent(this, VocabularyActivity.class));
+                navigateToTab(VocabularyActivity.class);
             } else if (id == R.id.nav_flashcard) {
-                startActivity(new Intent(this, SrsDeckPickerActivity.class));
+                navigateToTab(SrsDeckPickerActivity.class);
             } else if (id == R.id.nav_ai) {
-                startActivity(new Intent(this, AIRoleplayActivity.class));
+                navigateToTab(AIRoleplayActivity.class);
             } else if (id == R.id.nav_profile) {
-                startActivity(new Intent(this, ProfileActivity.class));
+                navigateToTab(ProfileActivity.class);
             }
             return true;
         });
+    }
+
+    /**
+     * BUG 4 FIX: dùng FLAG_ACTIVITY_REORDER_TO_FRONT kết hợp singleTop ở
+     * Manifest để tránh phình to back stack khi chuyển qua lại giữa các tab
+     * bottom nav. Nếu Activity đã tồn tại trong stack thì chỉ đưa nó lên top
+     * thay vì tạo instance mới.
+     */
+    private void navigateToTab(Class<?> target) {
+        Intent i = new Intent(this, target);
+        i.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        startActivity(i);
     }
 
     @Override
