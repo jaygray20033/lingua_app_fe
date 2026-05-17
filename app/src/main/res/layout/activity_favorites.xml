@@ -23,14 +23,34 @@
         android:layout_gravity="center"
         android:visibility="gone"/>
 
-    <TextView android:id="@+id/tvEmpty"
+    <!-- BUG U5 FIX : empty state avec un CTA — "Khám phá từ vựng / ngữ pháp"
+         pour rediriger l'utilisateur vers la liste de vocabulaire/grammaire. -->
+    <LinearLayout android:id="@+id/layoutEmpty"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:orientation="vertical"
         android:gravity="center"
         android:padding="32dp"
-        android:textColor="@color/lingua_gray"
-        android:visibility="gone"
-        android:text="Chưa có mục yêu thích nào.\nNhấn 🔖 trên từ vựng/ngữ pháp để thêm."/>
+        android:visibility="gone">
+
+        <TextView android:id="@+id/tvEmpty"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:textSize="16sp"
+            android:textColor="@color/lingua_gray"
+            android:text="Chưa có mục yêu thích nào.\nNhấn 🔖 trên từ vựng/ngữ pháp để thêm."/>
+
+        <Button android:id="@+id/btnExploreEmpty"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:text="📚 Khám phá từ vựng"
+            android:textColor="@color/white"
+            android:backgroundTint="@color/lingua_red"
+            android:paddingStart="24dp"
+            android:paddingEnd="24dp"/>
+    </LinearLayout>
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/recyclerView"
