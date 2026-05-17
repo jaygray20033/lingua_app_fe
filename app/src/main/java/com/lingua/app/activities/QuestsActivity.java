@@ -81,6 +81,21 @@ public class QuestsActivity extends AppCompatActivity implements QuestAdapter.On
 
     @Override
     public void onClaim(DailyQuest quest, int position) {
+        // BUG #R3-H3 FIX: pre-validate quest before calling claim API. Previously
+        // QuestsActivity.onClaim fired the request unconditionally and the
+        // failure branch was silent — so when backend rejected the claim
+        // (incomplete quest / already claimed) user got no feedback and could
+        // spam the button. We mirror the pre-check logic from
+        // MainActivity (BUG #12) and add an explicit error toast for the
+        // success=false / non-2xx branch.
+        if (quest.completed != 1) {
+            Toast.makeText(this, "⏳ Chưa hoàn thành nhiệm vụ này!", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (quest.claimedAt != null) {
+            Toast.makeText(this, "✅ Đã nhận thưởng rồi!", Toast.LENGTH_SHORT).show();
+            return;
+        }
         apiService.claimQuest(quest.id).enqueue(new Callback<ApiResponse<Object>>() {
             @Override
             public void onResponse(Call<ApiResponse<Object>> call, Response<ApiResponse<Object>> resp) {
@@ -90,6 +105,14 @@ public class QuestsActivity extends AppCompatActivity implements QuestAdapter.On
                         adapter.notifyItemChanged(position);
                         Toast.makeText(QuestsActivity.this, "🎉 Đã nhận thưởng " + quest.rewardGems + " 💎!", Toast.LENGTH_SHORT).show();
                     });
+                } else {
+                    // BUG #R3-H3 FIX: surface error response to user so they
+                    // understand why the claim was rejected.
+                    final String msg = resp.body() != null && resp.body().getMessage() != null
+                            ? resp.body().getMessage()
+                            : "Không nhận được thưởng";
+                    runOnUiThread(() -> Toast.makeText(QuestsActivity.this,
+                            msg, Toast.LENGTH_SHORT).show());
                 }
             }
 

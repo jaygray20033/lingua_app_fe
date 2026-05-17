@@ -220,7 +220,9 @@ public class SettingsActivity extends AppCompatActivity {
                     // Without this, the goal would only live in SharedPreferences
                     // and the server's goal_met flag in daily_xp_logs would
                     // never update — so streak/quest rewards were silently lost.
-                    LinguaApiService api = ApiClient.getApi(getApplicationContext());
+                    // BUG #R3-C1 FIX: ApiClient.getApi() does not exist; the correct
+                    // factory method is getService(Context).
+                    LinguaApiService api = ApiClient.getService(getApplicationContext());
                     Map<String, Object> body = new HashMap<>();
                     body.put("dailyXpGoal", xp);
                     api.setDailyGoal(body).enqueue(new Callback<ApiResponse<Object>>() {

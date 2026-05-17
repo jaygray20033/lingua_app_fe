@@ -43,7 +43,7 @@ public class PracticeActivity extends AppCompatActivity implements TextToSpeech.
 
     private TextView tvQuestion, tvScore, tvProgress, tvFeedback, tvHint, tvHearts;
     private EditText etFillBlank;
-    private Button btnSubmit, btnNext, btnHint, btnListen;
+    private Button btnSubmit, btnNext, btnHint, btnListen, btnSkip; // BUG U6: btnSkip
     private LinearLayout layoutMultiChoice, layoutFillBlank, layoutMatch, layoutSentenceOrder;
     private LinearLayout layoutOrderTokens, layoutOrderAnswer;
     private LinearLayout layoutMatchLeft, layoutMatchRight;
@@ -109,6 +109,20 @@ public class PracticeActivity extends AppCompatActivity implements TextToSpeech.
     }
 
     /**
+     * BUG U7 FIX : recharger les préférences sound/haptic à chaque retour
+     * dans l'activité. Sinon, si l'utilisateur ouvre Settings depuis Practice
+     * et toggle off "feedback_sound", la valeur en mémoire reste à `true`
+     * tant que Practice n'a pas été détruite (singleTask launchMode).
+     */
+    @Override
+    protected void onResume() {
+        super.onResume();
+        SharedPreferences prefs = getSharedPreferences("LinguaPrefs", MODE_PRIVATE);
+        prefSound  = prefs.getBoolean("feedback_sound", true);
+        prefHaptic = prefs.getBoolean("feedback_haptic", true);
+    }
+
+    /**
      * U2 FIX: confirm before leaving the lesson so the user does not lose
      * progress by accidentally tapping back.
      */
@@ -138,6 +152,7 @@ public class PracticeActivity extends AppCompatActivity implements TextToSpeech.
         btnNext = findViewById(R.id.btnNext);
         btnHint = findViewById(R.id.btnHint);
         btnListen = findViewById(R.id.btnListen);
+        btnSkip = findViewById(R.id.btnSkip); // BUG U6
         layoutMultiChoice = findViewById(R.id.layoutMultiChoice);
         layoutFillBlank = findViewById(R.id.layoutFillBlank);
         layoutMatch = findViewById(R.id.layoutMatch);
@@ -149,6 +164,23 @@ public class PracticeActivity extends AppCompatActivity implements TextToSpeech.
         btnNext.setOnClickListener(v -> nextExercise());
         btnHint.setOnClickListener(v -> showHint());
         btnListen.setOnClickListener(v -> playAudio());
+        // BUG U6 FIX : « Tôi chưa biết » → soumet une réponse vide (comptée fausse,
+        // l'app perd 1 ❤️) puis affiche la bonne réponse via le mécanisme normal.
+        if (btnSkip != null) {
+            btnSkip.setOnClickListener(v -> skipCurrentExercise());
+        }
+    }
+
+    /** BUG U6 — soumettre une réponse vide comme « je ne sais pas ». */
+    private void skipCurrentExercise() {
+        if (answerLocked) return;
+        if (exercises.isEmpty() || currentIndex >= exercises.size()) return;
+        new AlertDialog.Builder(this)
+                .setTitle("Bỏ qua câu này?")
+                .setMessage("Bạn sẽ thấy đáp án và mất 1 tim ❤️. Tiếp tục?")
+                .setPositiveButton("Bỏ qua", (d, w) -> submitSelectedAnswer(""))
+                .setNegativeButton("Huỷ", null)
+                .show();
     }
 
     /** Load current heart count to display in the header. */
@@ -283,6 +315,7 @@ public class PracticeActivity extends AppCompatActivity implements TextToSpeech.
         tvFeedback.setVisibility(View.GONE);
         btnNext.setVisibility(View.GONE);
         btnSubmit.setVisibility(View.VISIBLE);
+        if (btnSkip != null) btnSkip.setVisibility(View.VISIBLE); // BUG U6
         tvProgress.setText(String.format(Locale.getDefault(), "Bài tập %d/%d", index + 1, exercises.size()));
 
         // overall lesson progress
@@ -681,14 +714,92 @@ public class PracticeActivity extends AppCompatActivity implements TextToSpeech.
                         showFeedback(correct, result);
                         playFeedbackEffect(correct);
                         btnSubmit.setVisibility(View.GONE);
+                        if (btnSkip != null) btnSkip.setVisibility(View.GONE); // BUG U6
                         btnNext.setVisibility(View.VISIBLE);
                         tvScore.setText(String.format(Locale.getDefault(), "Score: %d/%d", score, currentIndex + 1));
+                    });
+                } else {
+                    // BUG L5 FIX: si le serveur renvoie 4xx/5xx, l'ancien code
+                    // ne ré-activait JAMAIS answerLocked → tous les boutons restaient
+                    // gris pour le reste de la session (jusqu'à kill app).
+                    // On ré-active la submission + on informe l'utilisateur.
+                    String msg;
+                    try {
+                        if (response.body() != null && response.body().getMessage() != null) {
+                            msg = response.body().getMessage();
+                        } else {
+                            msg = "Lỗi máy chủ (mã " + response.code() + "). Vui lòng thử lại.";
+                        }
+                    } catch (Exception ignore) {
+                        msg = "Lỗi máy chủ (mã " + response.code() + "). Vui lòng thử lại.";
+                    }
+                    final String finalMsg = msg;
+                    runOnUiThread(() -> {
+                        answerLocked = false;
+                        // BUG #R3-M1 FIX: restore tường minh visibility của
+                        // btnSubmit/btnSkip và ẩn btnNext khi server trả lỗi.
+                        // BUG L5 chỉ re-enable layoutMultiChoice, không revert
+                        // visibility của các nút, nên với FILL_BLANK /
+                        // SENTENCE_ORDER / MATCHING — nếu logic submit đã ẩn
+                        // btnSubmit ở bất kỳ branch nào trước đó — user sẽ
+                        // không còn nút nào để thử lại.
+                        btnSubmit.setVisibility(View.VISIBLE);
+                        if (btnSkip != null) btnSkip.setVisibility(View.VISIBLE);
+                        btnNext.setVisibility(View.GONE);
+                        // Ré-activer les choix multi-choice pour permettre un retry
+                        if (layoutMultiChoice != null && layoutMultiChoice.getVisibility() == View.VISIBLE) {
+                            for (int i = 0; i < layoutMultiChoice.getChildCount(); i++) {
+                                layoutMultiChoice.getChildAt(i).setEnabled(true);
+                            }
+                        }
+                        // BUG #R3-M1 FIX: re-enable input cho các exercise type khác.
+                        if (etFillBlank != null && etFillBlank.getVisibility() == View.VISIBLE) {
+                            etFillBlank.setEnabled(true);
+                        }
+                        if (layoutSentenceOrder != null && layoutSentenceOrder.getVisibility() == View.VISIBLE) {
+                            for (int i = 0; i < layoutSentenceOrder.getChildCount(); i++) {
+                                layoutSentenceOrder.getChildAt(i).setEnabled(true);
+                            }
+                        }
+                        if (layoutMatch != null && layoutMatch.getVisibility() == View.VISIBLE) {
+                            for (int i = 0; i < layoutMatch.getChildCount(); i++) {
+                                layoutMatch.getChildAt(i).setEnabled(true);
+                            }
+                        }
+                        Toast.makeText(PracticeActivity.this, finalMsg, Toast.LENGTH_SHORT).show();
                     });
                 }
             }
             @Override public void onFailure(Call<ApiResponse<AnswerResult>> call, Throwable t) {
                 // Allow user to retry on network failure.
-                answerLocked = false;
+                runOnUiThread(() -> {
+                    answerLocked = false;
+                    // BUG #R3-M1 FIX: restore button visibility ở cả nhánh
+                    // onFailure để đảm bảo user luôn có thể thử lại.
+                    btnSubmit.setVisibility(View.VISIBLE);
+                    if (btnSkip != null) btnSkip.setVisibility(View.VISIBLE);
+                    btnNext.setVisibility(View.GONE);
+                    if (layoutMultiChoice != null && layoutMultiChoice.getVisibility() == View.VISIBLE) {
+                        for (int i = 0; i < layoutMultiChoice.getChildCount(); i++) {
+                            layoutMultiChoice.getChildAt(i).setEnabled(true);
+                        }
+                    }
+                    if (etFillBlank != null && etFillBlank.getVisibility() == View.VISIBLE) {
+                        etFillBlank.setEnabled(true);
+                    }
+                    if (layoutSentenceOrder != null && layoutSentenceOrder.getVisibility() == View.VISIBLE) {
+                        for (int i = 0; i < layoutSentenceOrder.getChildCount(); i++) {
+                            layoutSentenceOrder.getChildAt(i).setEnabled(true);
+                        }
+                    }
+                    if (layoutMatch != null && layoutMatch.getVisibility() == View.VISIBLE) {
+                        for (int i = 0; i < layoutMatch.getChildCount(); i++) {
+                            layoutMatch.getChildAt(i).setEnabled(true);
+                        }
+                    }
+                    Toast.makeText(PracticeActivity.this,
+                            "Lỗi mạng. Vui lòng thử lại.", Toast.LENGTH_SHORT).show();
+                });
             }
         });
     }
