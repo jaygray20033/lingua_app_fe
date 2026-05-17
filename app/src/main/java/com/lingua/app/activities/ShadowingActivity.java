@@ -239,6 +239,21 @@ public class ShadowingActivity extends AppCompatActivity implements TextToSpeech
     private void startRecording() {
         if (isRecording) return;
 
+        // BUG #R3-M3 FIX: kiểm tra RECORD_AUDIO permission trước khi gọi
+        // MediaRecorder.prepare(). Trước đây checkMicPermission() chỉ chạy
+        // trong onCreate() và KHÔNG block UI. Nếu user nhanh tay bấm "🎙 Ghi
+        // âm" trước khi grant permission → prepare() ném SecurityException /
+        // IllegalStateException khiến activity rơi vào trạng thái lỗi. Nếu
+        // user deny vĩnh viễn thì nút Record vẫn enable, cứ mỗi lần bấm là
+        // crash hoặc fail silent.
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
+                != PackageManager.PERMISSION_GRANTED) {
+            Toast.makeText(this, "Cần cấp quyền micro để ghi âm", Toast.LENGTH_LONG).show();
+            ActivityCompat.requestPermissions(this,
+                    new String[]{Manifest.permission.RECORD_AUDIO}, REQUEST_MICROPHONE);
+            return;
+        }
+
         recordingFilePath = getExternalCacheDir() + "/shadowing_" + System.currentTimeMillis() + ".3gp";
 
         mediaRecorder = new MediaRecorder();
@@ -408,6 +423,29 @@ public class ShadowingActivity extends AppCompatActivity implements TextToSpeech
     private void checkMicPermission() {
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.RECORD_AUDIO}, REQUEST_MICROPHONE);
+        }
+    }
+
+    /**
+     * BUG #R3-M3 FIX: handle permission result. Nếu user deny RECORD_AUDIO
+     * thì disable nút Record và inform user thay vì để app im lặng crash khi
+     * họ bấm record.
+     */
+    @Override
+    public void onRequestPermissionsResult(int requestCode,
+                                           @androidx.annotation.NonNull String[] permissions,
+                                           @androidx.annotation.NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == REQUEST_MICROPHONE) {
+            if (grantResults.length == 0
+                    || grantResults[0] != PackageManager.PERMISSION_GRANTED) {
+                if (btnRecord != null) btnRecord.setEnabled(false);
+                if (tvStatus != null) {
+                    tvStatus.setText("⚠️ Không có quyền micro — không thể luyện shadowing");
+                }
+            } else {
+                if (btnRecord != null) btnRecord.setEnabled(true);
+            }
         }
     }
 

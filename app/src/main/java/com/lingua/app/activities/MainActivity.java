@@ -1,11 +1,18 @@
 package com.lingua.app.activities;
 
+import android.Manifest;
 import android.content.Intent;
+import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.*;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -64,6 +71,49 @@ public class MainActivity extends AppCompatActivity {
     private static final long REFRESH_COOLDOWN_MS = 30_000L;
     private long lastRefreshMs = 0;
 
+    // BUG #R3-H4 FIX: trên Android 13+ (API 33), permission POST_NOTIFICATIONS
+    // phải được user grant runtime. Trước đây app chỉ khai báo trong manifest
+    // và schedule notification mà không bao giờ request quyền → notification
+    // im lặng nếu user chưa cấp. ActivityResultLauncher dưới đây xử lý
+    // request, và nếu user từ chối thì tự tắt cờ daily reminder trong prefs
+    // để tránh schedule alarm vô ích.
+    private final ActivityResultLauncher<String> notifPermLauncher =
+            registerForActivityResult(new ActivityResultContracts.RequestPermission(), granted -> {
+                if (!granted) {
+                    SharedPreferences p = getSharedPreferences(SettingsActivity.PREFS, MODE_PRIVATE);
+                    // Don't disable the user-facing toggle outright — just stop
+                    // scheduling. The Settings screen can re-request when user
+                    // re-enables the switch.
+                    com.lingua.app.utils.NotificationScheduler.cancelDaily(getApplicationContext());
+                    Toast.makeText(this,
+                            "⚠️ Bạn đã từ chối quyền thông báo. Nhắc nhở hàng ngày sẽ không hiển thị.",
+                            Toast.LENGTH_LONG).show();
+                }
+            });
+
+    /**
+     * BUG #R3-H4 FIX: yêu cầu POST_NOTIFICATIONS permission khi app khởi động
+     * lần đầu (chỉ trên Android 13+). Nếu permission đã grant thì không làm gì.
+     * Nếu user đã chọn "Không hiển thị nữa" trước đó (shouldShowRationale =
+     * false sau lần deny) thì cũng skip.
+     */
+    private void ensureNotificationPermission() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return;
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                == PackageManager.PERMISSION_GRANTED) {
+            return;
+        }
+        // Only request if user has not permanently denied. Otherwise we'd be
+        // spamming the system permission dialog (which would just be a no-op).
+        SharedPreferences p = getSharedPreferences(SettingsActivity.PREFS, MODE_PRIVATE);
+        if (p.getBoolean("notif_perm_asked", false)
+                && !shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS)) {
+            return;
+        }
+        p.edit().putBoolean("notif_perm_asked", true).apply();
+        notifPermLauncher.launch(Manifest.permission.POST_NOTIFICATIONS);
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -71,6 +121,11 @@ public class MainActivity extends AppCompatActivity {
 
         session = SessionManager.getInstance(this);
         apiService = ApiClient.getService(this);
+
+        // BUG #R3-H4 FIX: yêu cầu POST_NOTIFICATIONS runtime trên Android 13+
+        // để daily reminder / streak alert / achievement notification thực sự
+        // hiển thị thay vì fail silent.
+        ensureNotificationPermission();
 
         tvUserName = findViewById(R.id.tvUserName);
         tvXp = findViewById(R.id.tvXp);
@@ -209,6 +264,15 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        // BUG U8 FIX : re-highlighter le tab Home à chaque retour dans MainActivity.
+        // Avant : `setSelectedItemId` n'était appelé que dans onCreate → si l'user
+        // partait vers WordDetailActivity puis revenait, le tab Home pouvait être
+        // dé-sélectionné (bug visuel : aucun tab en surbrillance).
+        BottomNavigationView navResume = findViewById(R.id.bottomNavigation);
+        if (navResume != null && navResume.getSelectedItemId() != R.id.nav_home) {
+            navResume.setSelectedItemId(R.id.nav_home);
+        }
+
         // BUG #11 FIX: cooldown 30s để tránh gọi 4 API requests mỗi lần user
         // quay về Home (kể cả khi chỉ tắt màn hình rồi bật lại, hoặc quay từ
         // Settings về). Tốn pin, tốn dữ liệu, có thể bị rate-limit.
@@ -388,10 +452,22 @@ public class MainActivity extends AppCompatActivity {
         Enrollment best = null;
         for (Enrollment e : enrollments) {
             if (e.nextLessonId != null && e.nextLessonId > 0) {
-                if (best == null) best = e;
-                // Prefer the most recently accessed enrollment with a next lesson.
-                if (e.lastAccessedAt != null && best.lastAccessedAt != null
-                        && e.lastAccessedAt.compareTo(best.lastAccessedAt) > 0) {
+                if (best == null) {
+                    best = e;
+                    continue;
+                }
+                // BUG #R3-M7 FIX: logic cũ chỉ swap khi CẢ HAI enrollment đều
+                // có lastAccessedAt != null. Nếu best.lastAccessedAt == null
+                // (vd. enrollment vừa tạo, chưa học bài nào) thì e (có
+                // lastAccessed mới hơn) sẽ KHÔNG BAO GIỜ thay thế best →
+                // Continue button trỏ đến course user chưa học gần đây.
+                //
+                // Logic mới: ưu tiên enrollment có lastAccessedAt khác null;
+                // nếu cả hai cùng có thì so sánh timestamp; nếu best chưa có
+                // mà e có → swap để chọn enrollment user thực sự đang học.
+                if (e.lastAccessedAt != null
+                        && (best.lastAccessedAt == null
+                            || e.lastAccessedAt.compareTo(best.lastAccessedAt) > 0)) {
                     best = e;
                 }
             }

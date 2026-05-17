@@ -63,6 +63,13 @@ public class VocabularyActivity extends AppCompatActivity implements TextToSpeec
         {"HSK1", "HSK2", "HSK3", "HSK4", "HSK5", "HSK6"}
     };
 
+    // BUG U4 — clés du Bundle pour préserver l'état lors d'une rotation.
+    private static final String STATE_LANG   = "u4_lang";
+    private static final String STATE_LEVEL  = "u4_level";
+    private static final String STATE_PAGE   = "u4_page";
+    private static final String STATE_SEARCH = "u4_search";
+    private String pendingRestoreSearch = null; // appliqué après instanciation d'etSearch
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -71,12 +78,27 @@ public class VocabularyActivity extends AppCompatActivity implements TextToSpeec
         apiService = ApiClient.getService(this);
         tts = new TextToSpeech(this, this);
 
+        // BUG U4 FIX : restaurer l'état AVANT setup des tabs/spinners pour que
+        // `updateLevelSpinner` / `setupTabs` sélectionnent les bonnes positions.
+        if (savedInstanceState != null) {
+            currentLanguage = savedInstanceState.getString(STATE_LANG, currentLanguage);
+            currentLevel    = savedInstanceState.getString(STATE_LEVEL, currentLevel);
+            currentPage     = savedInstanceState.getInt(STATE_PAGE, 1);
+            pendingRestoreSearch = savedInstanceState.getString(STATE_SEARCH, null);
+        }
+
         tabLanguage = findViewById(R.id.tabLanguage);
         spinnerLevel = findViewById(R.id.spinnerLevel);
         etSearch = findViewById(R.id.etSearch);
         recyclerView = findViewById(R.id.recyclerView);
         progressBar = findViewById(R.id.progressBar);
         tvEmpty = findViewById(R.id.tvEmpty);
+
+        // Restaurer le texte de recherche maintenant qu'etSearch existe
+        if (pendingRestoreSearch != null) {
+            etSearch.setText(pendingRestoreSearch);
+            pendingRestoreSearch = null;
+        }
 
         LinearLayoutManager lm = new LinearLayoutManager(this);
         recyclerView.setLayoutManager(lm);
@@ -111,7 +133,21 @@ public class VocabularyActivity extends AppCompatActivity implements TextToSpeec
 
         setupTabs();
         setupSearch();
-        updateLevelSpinner(0);
+
+        // BUG U4 FIX : sélectionner le bon onglet langue après restore.
+        int langIdx = 0;
+        switch (currentLanguage) {
+            case "ja": langIdx = 0; break;
+            case "en": langIdx = 1; break;
+            case "zh": langIdx = 2; break;
+            default:   langIdx = 0; break;
+        }
+        if (tabLanguage.getTabCount() > langIdx) {
+            TabLayout.Tab t = tabLanguage.getTabAt(langIdx);
+            if (t != null && !t.isSelected()) t.select();
+        }
+
+        updateLevelSpinner(langIdx);
         loadFavoriteIds();
         loadWords(true);
     }
@@ -318,6 +354,12 @@ public class VocabularyActivity extends AppCompatActivity implements TextToSpeec
             apiService.addFavorite(body).enqueue(new Callback<ApiResponse<Object>>() {
                 @Override public void onResponse(Call<ApiResponse<Object>> c, Response<ApiResponse<Object>> r) {
                     Toast.makeText(VocabularyActivity.this, "🔖 Đã thêm vào yêu thích", Toast.LENGTH_SHORT).show();
+                    // BUG #R3-M4 FIX: sync favoriteIds set của adapter NGAY
+                    // sau khi backend confirm thay vì đợi onResume() chạy
+                    // lại loadFavoriteIds(). Trước đây nếu user scroll xa
+                    // rồi quay lại item vừa toggle, view có thể bị bind lại
+                    // với favoriteIds cũ → icon star flicker / revert.
+                    if (wordAdapter != null) wordAdapter.addFavoriteId(word.getId());
                 }
                 @Override public void onFailure(Call<ApiResponse<Object>> c, Throwable t) {}
             });
@@ -325,6 +367,8 @@ public class VocabularyActivity extends AppCompatActivity implements TextToSpeec
             apiService.removeFavorite("WORD", word.getId()).enqueue(new Callback<ApiResponse<Object>>() {
                 @Override public void onResponse(Call<ApiResponse<Object>> c, Response<ApiResponse<Object>> r) {
                     Toast.makeText(VocabularyActivity.this, "Đã bỏ khỏi yêu thích", Toast.LENGTH_SHORT).show();
+                    // BUG #R3-M4 FIX: cùng lý do như nhánh add ở trên.
+                    if (wordAdapter != null) wordAdapter.removeFavoriteId(word.getId());
                 }
                 @Override public void onFailure(Call<ApiResponse<Object>> c, Throwable t) {}
             });
@@ -397,6 +441,22 @@ public class VocabularyActivity extends AppCompatActivity implements TextToSpeec
     protected void onResume() {
         super.onResume();
         loadFavoriteIds();
+    }
+
+    /**
+     * BUG U4 FIX — sauvegarder l'état lors d'une rotation d'écran.
+     * Sans cela, l'utilisateur perd : la langue/niveau sélectionnés, la page
+     * de pagination courante, et le texte tapé dans la recherche.
+     */
+    @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
+        outState.putString(STATE_LANG, currentLanguage);
+        outState.putString(STATE_LEVEL, currentLevel != null ? currentLevel : "");
+        outState.putInt(STATE_PAGE, currentPage);
+        if (etSearch != null && etSearch.getText() != null) {
+            outState.putString(STATE_SEARCH, etSearch.getText().toString());
+        }
     }
 
     @Override

@@ -260,6 +260,13 @@ public class ProfileActivity extends AppCompatActivity {
 
     private void submitDailyGoal(int xp) {
         Map<String, Object> body = new HashMap<>();
+        // BUG #R3-H1 FIX: backend reads `dailyXpGoal` as the primary key (see
+        // BUG B7). Previously ProfileActivity only sent `dailyGoal` + `xp`,
+        // which meant the server-side `user_languages.daily_xp_goal` never
+        // updated when the user changed the goal from the Profile screen.
+        // This caused silent reward loss because streak/quest goal_met flags
+        // kept using the old daily goal.
+        body.put("dailyXpGoal", xp); // primary key for backend
         body.put("dailyGoal", xp);
         body.put("xp", xp); // alternate key
         apiService.setDailyGoal(body).enqueue(new Callback<ApiResponse<Object>>() {

@@ -50,6 +50,20 @@ public class WordAdapter extends RecyclerView.Adapter<WordAdapter.ViewHolder> {
         if (fav) favoriteIds.add(wordId); else favoriteIds.remove(wordId);
     }
 
+    // BUG #R3-M4 FIX: convenience helpers for VocabularyActivity to sync the
+    // favoriteIds set immediately after a successful toggle (instead of
+    // waiting for onResume() to reload from the backend). Without this, an
+    // item that scrolls out of the viewport and back can flicker — its
+    // ViewHolder gets rebound from `favoriteIds` which still reflects the
+    // stale "before toggle" state.
+    public void addFavoriteId(long id) {
+        favoriteIds.add(id);
+    }
+
+    public void removeFavoriteId(long id) {
+        favoriteIds.remove(id);
+    }
+
     @NonNull
     @Override
     public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {

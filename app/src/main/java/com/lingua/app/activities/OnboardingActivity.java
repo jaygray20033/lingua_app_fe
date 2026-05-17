@@ -315,29 +315,83 @@ public class OnboardingActivity extends AppCompatActivity {
                         newCodes.add(code);
                         newFlags.add(flag);
                         newTitles.add(name);
+                        // BUG #R3-L4 FIX: thêm metadata cho các ngôn ngữ phổ
+                        // biến để khi backend mở rộng (Pháp/Tây Ban Nha/Đức/
+                        // Việt...), sub-text vẫn có thông tin trình độ giống
+                        // 4 ngôn ngữ ban đầu, tránh cảm giác cứng nhắc.
+                        // Backend nên cung cấp `meta_description` field trong
+                        // tương lai để loại bỏ hardcode này hoàn toàn.
                         String sub;
                         switch (code) {
                             case "ja": sub = "JLPT N5–N1, Hiragana, Kanji"; break;
                             case "en": sub = "TOEIC, IELTS, A1–C2"; break;
                             case "zh": sub = "HSK 1–6, từ vựng giao tiếp"; break;
                             case "ko": sub = "TOPIK 1–6, hội thoại"; break;
-                            default: sub = "Học " + name; break;
+                            case "fr": sub = "DELF/DALF A1–C2, hội thoại"; break;
+                            case "es": sub = "DELE A1–C2, từ vựng phổ thông"; break;
+                            case "de": sub = "Goethe A1–C2, ngữ pháp căn bản"; break;
+                            case "vi": sub = "Tiếng Việt sơ–trung cấp"; break;
+                            case "it": sub = "CILS A1–C2, hội thoại"; break;
+                            case "pt": sub = "CELPE-Bras, từ vựng phổ thông"; break;
+                            case "ru": sub = "TORFL A1–C2, bảng chữ Cyrillic"; break;
+                            case "ar": sub = "Tiếng Ả Rập sơ–trung cấp"; break;
+                            default:
+                                // Use generic description with the name to
+                                // remain meaningful instead of just "Học X".
+                                sub = "Học " + name + " từ cơ bản đến nâng cao";
+                                break;
                         }
+                        // Provide a generic flag fallback that's prettier
+                        // than the default 🏳️ if backend forgot to set one.
+                        // (We only apply it when no flag_emoji was sent.)
                         newSubs.add(sub);
                     }
+                    // BUG #R3-M8 FIX: trước khi swap codes/flags/titles/subs,
+                    // lưu lại CODE của ngôn ngữ user đang chọn (nếu có) để
+                    // có thể restore selection sau khi adapter mới được tạo.
+                    // Logic cũ luôn reset selectedIndex = -1 → nếu user đã
+                    // bấm chọn ngôn ngữ trong 1-2s đầu (lúc adapter còn dùng
+                    // fallback hardcode), sau khi backend trả về, lựa chọn
+                    // bị mất → nút "Tiếp tục" disable lại.
+                    final String previouslySelectedCode =
+                            (selectedIndex >= 0 && selectedIndex < codes.length)
+                                    ? codes[selectedIndex] : null;
+
                     codes = newCodes.toArray(new String[0]);
                     flags = newFlags.toArray(new String[0]);
                     titles = newTitles.toArray(new String[0]);
                     subs = newSubs.toArray(new String[0]);
+
+                    // Try to map old code → new index. If the new language
+                    // list no longer contains the previously selected code
+                    // (rare — would only happen if backend reshuffles its
+                    // language list at runtime), fall back to no selection.
+                    int newSelectedIdx = -1;
+                    if (previouslySelectedCode != null) {
+                        for (int i = 0; i < codes.length; i++) {
+                            if (previouslySelectedCode.equals(codes[i])) {
+                                newSelectedIdx = i;
+                                break;
+                            }
+                        }
+                    }
+                    final int idxToSelect = newSelectedIdx;
+
                     if (rv != null && getActivity() != null) {
                         getActivity().runOnUiThread(() -> {
-                            selectedIndex = -1;
-                            if (btnContinue != null) btnContinue.setEnabled(false);
+                            selectedIndex = idxToSelect;
                             adapter = new ChoiceAdapter(flags, titles, subs, idx -> {
                                 selectedIndex = idx;
                                 if (btnContinue != null) btnContinue.setEnabled(true);
                             });
+                            // BUG #R3-M8 FIX: prime adapter's `selected`
+                            // field so the previously chosen row is
+                            // highlighted again after the rebind.
+                            adapter.selected = idxToSelect;
                             rv.setAdapter(adapter);
+                            if (btnContinue != null) {
+                                btnContinue.setEnabled(idxToSelect >= 0);
+                            }
                         });
                     }
                 }
@@ -402,53 +456,58 @@ public class OnboardingActivity extends AppCompatActivity {
     //  Placement / starting level
     // -----------------------------------------------------------------------
     public static class PlacementFragment extends Fragment {
-        // BUG #20 FIX: request code cho placement test result.
-        private static final int REQ_PLACEMENT_TEST = 7321;
         private int selectedIndex = -1;
         private String[] currentLevels = {"N5", "N4", "N3", "N2", "N1"};
         private Button btnFinish;
         private ChoiceAdapter adapter;
 
         /**
-         * BUG #20 FIX: nhận kết quả placement test từ MockTestActivity. Khi
-         * MockTestActivity finish với RESULT_OK + extra "level", ta highlight
-         * mục tương ứng và cập nhật host.selectedLevel để finishOnboarding()
-         * dùng đúng level từ kết quả test (thay vì giá trị mặc định "N5"/"A1"...).
+         * BUG L7 FIX — Migration startActivityForResult → ActivityResultLauncher.
+         *
+         * Problème antérieur : `onActivityResult(int, int, Intent)` est déprécié
+         * et n'est PAS toujours appelé sur les Fragments hébergés via ViewPager2 +
+         * FragmentStateAdapter (selon la version d'AndroidX). Le résultat du
+         * placement test pouvait être routé vers `OnboardingActivity.onActivityResult`
+         * (qui n'override rien) au lieu de PlacementFragment → l'utilisateur
+         * finissait l'onboarding avec un level par défaut, ignorant son score.
+         *
+         * Solution : ActivityResultLauncher (registerForActivityResult) — pattern
+         * recommandé par AndroidX, fonctionne quel que soit le host du Fragment.
          */
-        @Override
-        public void onActivityResult(int requestCode, int resultCode, Intent data) {
-            super.onActivityResult(requestCode, resultCode, data);
-            if (requestCode != REQ_PLACEMENT_TEST || resultCode != android.app.Activity.RESULT_OK || data == null) {
-                return;
-            }
-            String suggested = data.getStringExtra("level");
-            if (suggested == null || suggested.isEmpty()) return;
+        private final androidx.activity.result.ActivityResultLauncher<Intent> placementLauncher =
+                registerForActivityResult(
+                        new androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult(),
+                        result -> {
+                            if (result.getResultCode() != android.app.Activity.RESULT_OK
+                                    || result.getData() == null) {
+                                return;
+                            }
+                            String suggested = result.getData().getStringExtra("level");
+                            if (suggested == null || suggested.isEmpty()) return;
 
-            OnboardingActivity host = (OnboardingActivity) requireActivity();
-            host.selectedLevel = suggested;
+                            OnboardingActivity host = (OnboardingActivity) requireActivity();
+                            host.selectedLevel = suggested;
 
-            // Tìm vị trí của level trong currentLevels để highlight.
-            for (int i = 0; i < currentLevels.length; i++) {
-                if (suggested.equalsIgnoreCase(currentLevels[i])) {
-                    selectedIndex = i;
-                    if (adapter != null) {
-                        int prev = adapter.selected;
-                        adapter.selected = i;
-                        if (prev >= 0) adapter.notifyItemChanged(prev);
-                        adapter.notifyItemChanged(i);
-                    }
-                    if (btnFinish != null) btnFinish.setEnabled(true);
-                    Toast.makeText(getContext(),
-                            "📊 Bài kiểm tra gợi ý trình độ: " + suggested,
-                            Toast.LENGTH_LONG).show();
-                    return;
-                }
-            }
-            // Level không nằm trong danh sách → chỉ thông báo
-            Toast.makeText(getContext(),
-                    "📊 Trình độ gợi ý: " + suggested + " (đã lưu)",
-                    Toast.LENGTH_LONG).show();
-        }
+                            for (int i = 0; i < currentLevels.length; i++) {
+                                if (suggested.equalsIgnoreCase(currentLevels[i])) {
+                                    selectedIndex = i;
+                                    if (adapter != null) {
+                                        int prev = adapter.selected;
+                                        adapter.selected = i;
+                                        if (prev >= 0) adapter.notifyItemChanged(prev);
+                                        adapter.notifyItemChanged(i);
+                                    }
+                                    if (btnFinish != null) btnFinish.setEnabled(true);
+                                    Toast.makeText(getContext(),
+                                            "📊 Bài kiểm tra gợi ý trình độ: " + suggested,
+                                            Toast.LENGTH_LONG).show();
+                                    return;
+                                }
+                            }
+                            Toast.makeText(getContext(),
+                                    "📊 Trình độ gợi ý: " + suggested + " (đã lưu)",
+                                    Toast.LENGTH_LONG).show();
+                        });
 
         @Override public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle b) {
             View v = inflater.inflate(R.layout.fragment_onboarding_placement, container, false);
@@ -487,10 +546,9 @@ public class OnboardingActivity extends AppCompatActivity {
                 Intent i = new Intent(getContext(), MockTestActivity.class);
                 i.putExtra("placement", true);
                 i.putExtra("language", host.selectedLanguage);
-                // BUG #20 FIX: dùng startActivityForResult để nhận lại level đề
-                // xuất từ MockTestActivity. Trước đây kết quả test không rõ ràng
-                // được cập nhật vào selectedLevel trước khi gọi finishOnboarding().
-                startActivityForResult(i, REQ_PLACEMENT_TEST);
+                // BUG L7 FIX : utiliser ActivityResultLauncher (cf. déclaration plus haut)
+                // au lieu de startActivityForResult (déprécié + buggy avec ViewPager2).
+                placementLauncher.launch(i);
             });
 
             btnFinish.setOnClickListener(x -> {

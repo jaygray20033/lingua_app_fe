@@ -8,6 +8,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.*;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -107,11 +108,20 @@ public class MockTestDetailActivity extends AppCompatActivity {
             finish();
             return;
         }
-        startedAtMs = System.currentTimeMillis();
+        // BUG #R3-M2 FIX: nếu activity được tái tạo sau config-change,
+        // startedAtMs đã được restore trong onRestoreInstanceState — không
+        // được overwrite, nếu không timer sẽ reset về full duration mỗi
+        // lần xoay máy.
+        if (startedAtMs == 0) {
+            startedAtMs = System.currentTimeMillis();
+        }
         durationMs = detail.durationMin > 0 ? detail.durationMin * 60_000L : 0;
         if (durationMs > 0) timerHandler.post(timerTick);
         else tvTimer.setVisibility(View.GONE);
-        showQuestion(0);
+        // BUG #R3-M2 FIX: khôi phục câu hỏi đang xem dở thay vì luôn hiển thị câu 0.
+        int idxToShow = (currentIndex >= 0 && currentIndex < questions.size())
+                ? currentIndex : 0;
+        showQuestion(idxToShow);
     }
 
     // U3 FIX: track which countdown warnings (5-min / 1-min) we've already shown
@@ -166,7 +176,8 @@ public class MockTestDetailActivity extends AppCompatActivity {
                 .setTitle("Thoát bài thi?")
                 .setMessage("Bài thi sẽ bị huỷ và tất cả câu trả lời của bạn sẽ mất. Bạn có chắc không?")
                 .setPositiveButton("Thoát", (d, w) -> super.onBackPressed())
-                .setNegativeButton("Ấ không, tiếp tục", null)
+                // BUG #R3-L1 FIX: typo "Ấ không, tiếp tục" → "Không, tiếp tục học".
+                .setNegativeButton("Không, tiếp tục học", null)
                 .show();
     }
 
@@ -353,5 +364,60 @@ public class MockTestDetailActivity extends AppCompatActivity {
         timerHandler.removeCallbacks(timerTick);
         if (mediaPlayer != null) { try { mediaPlayer.release(); } catch (Exception ignore) {} }
         super.onDestroy();
+    }
+
+    /**
+     * BUG #R3-M2 FIX: persist user answers + current index + start timestamp
+     * across configuration changes (screen rotation, dark-mode toggle, locale
+     * change, etc.). Trước đây userAnswers chỉ tồn tại trong RAM của Activity
+     * instance — khi user xoay máy, toàn bộ HashMap mất → user phải làm lại
+     * bài thi từ đầu.
+     *
+     * Lưu ý: cũng capture nội dung etAnswer hiện tại (nếu visible) trước khi
+     * save, vì với câu hỏi đang nhập dở, listener onFocusChange chỉ fire khi
+     * user thực sự rời focus — config-change không trigger focus change.
+     */
+    @Override
+    protected void onSaveInstanceState(@NonNull Bundle outState) {
+        super.onSaveInstanceState(outState);
+        // Capture current input first
+        if (etAnswer != null && etAnswer.getVisibility() == View.VISIBLE
+                && currentIndex < questions.size()) {
+            userAnswers.put(questions.get(currentIndex).id, etAnswer.getText().toString());
+        }
+        // Serialize HashMap<Long,String> as 2 parallel arraylists since
+        // HashMap of Long → String is not directly Parcelable.
+        ArrayList<Long> keys = new ArrayList<>(userAnswers.keySet());
+        ArrayList<String> values = new ArrayList<>();
+        for (Long k : keys) values.add(userAnswers.get(k));
+        outState.putSerializable("answers_keys", keys);
+        outState.putStringArrayList("answers_values", values);
+        outState.putInt("current_index", currentIndex);
+        outState.putLong("started_at", startedAtMs);
+    }
+
+    @SuppressWarnings("unchecked")
+    @Override
+    protected void onRestoreInstanceState(@NonNull Bundle savedInstanceState) {
+        super.onRestoreInstanceState(savedInstanceState);
+        // BUG #R3-M2 FIX: restore HashMap from parallel arraylists.
+        try {
+            ArrayList<Long> keys = (ArrayList<Long>) savedInstanceState.getSerializable("answers_keys");
+            ArrayList<String> values = savedInstanceState.getStringArrayList("answers_values");
+            if (keys != null && values != null && keys.size() == values.size()) {
+                userAnswers.clear();
+                for (int i = 0; i < keys.size(); i++) {
+                    userAnswers.put(keys.get(i), values.get(i));
+                }
+            }
+            int idx = savedInstanceState.getInt("current_index", 0);
+            long started = savedInstanceState.getLong("started_at", 0L);
+            if (started > 0) startedAtMs = started;
+            // Re-render currentIndex once loadDetail finishes (loadDetail()
+            // will call startTest() which calls showQuestion(0) by default).
+            // We override the index here so when loadDetail returns,
+            // showQuestion is called with the right one.
+            currentIndex = idx;
+        } catch (Throwable ignored) { /* defensive */ }
     }
 }

@@ -7,6 +7,8 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.*;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
@@ -36,6 +38,8 @@ import retrofit2.Response;
  */
 public class MockTestActivity extends AppCompatActivity {
     // BUG #20 FIX: request code cho placement test khi mở từ Onboarding.
+    // BUG #R3-H2 FIX: still kept for legacy debugging logs but no longer used —
+    // we migrated to ActivityResultLauncher below.
     private static final int REQ_PLACEMENT_DETAIL = 9911;
     private LinguaApiService apiService;
     private RecyclerView recyclerView;
@@ -48,19 +52,29 @@ public class MockTestActivity extends AppCompatActivity {
 
     // BUG #20 FIX: chuyển kết quả placement từ MockTestDetailActivity về
     // OnboardingActivity (nếu activity này được mở từ onboarding flow).
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == REQ_PLACEMENT_DETAIL && resultCode == RESULT_OK && data != null) {
-            String level = data.getStringExtra("level");
-            if (level != null && !level.isEmpty()) {
-                Intent out = new Intent();
-                out.putExtra("level", level);
-                setResult(RESULT_OK, out);
-                finish();
-            }
-        }
-    }
+    //
+    // BUG #R3-H2 FIX: Round 2 (BUG L7) đã migrate PlacementFragment sang
+    // ActivityResultLauncher để fix vấn đề onActivityResult không được gọi
+    // với ViewPager2 + FragmentStateAdapter. Nhưng MockTestActivity
+    // (intermediary giữa Onboarding và MockTestDetailActivity) vẫn dùng
+    // startActivityForResult/onActivityResult cũ → trên một số version
+    // AndroidX, result không route đúng → PlacementFragment.placementLauncher
+    // không nhận được level → user phải chọn level thủ công.
+    //
+    // Giải pháp: dùng ActivityResultLauncher xuyên suốt chain để đảm bảo
+    // result được propagate đúng cách bất kể fragment manager pattern.
+    private final ActivityResultLauncher<Intent> detailLauncher =
+            registerForActivityResult(new ActivityResultContracts.StartActivityForResult(),
+                    result -> {
+                        if (result.getResultCode() != RESULT_OK || result.getData() == null) return;
+                        String level = result.getData().getStringExtra("level");
+                        if (level != null && !level.isEmpty()) {
+                            Intent out = new Intent();
+                            out.putExtra("level", level);
+                            setResult(RESULT_OK, out);
+                            finish();
+                        }
+                    });
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -225,7 +239,10 @@ public class MockTestActivity extends AppCompatActivity {
                 if (isPlacement) {
                     i.putExtra("placement", true);
                     i.putExtra("language", getIntent().getStringExtra("language"));
-                    startActivityForResult(i, REQ_PLACEMENT_DETAIL);
+                    // BUG #R3-H2 FIX: dùng ActivityResultLauncher thay vì
+                    // startActivityForResult (đã deprecated) để result được
+                    // route đúng qua chain Onboarding → MockTest → MockTestDetail.
+                    detailLauncher.launch(i);
                 } else {
                     startActivity(i);
                 }

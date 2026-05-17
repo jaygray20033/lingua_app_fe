@@ -138,6 +138,13 @@ public class AIRoleplayActivity extends AppCompatActivity implements TextToSpeec
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                 selectedLanguage = langCodes[position];
+                // BUG #R3-M5 FIX: reset scenario state khi đổi ngôn ngữ.
+                // Trước đây selectedScenarioId vẫn giữ id của scenario JP
+                // sau khi user đổi sang EN — nếu user bấm "Bắt đầu phiên"
+                // trước khi loadScenarios callback về thì backend nhận id
+                // không tồn tại trong scenarios EN → 400 Bad Request.
+                selectedScenarioId = null;
+                scenarios.clear();
                 loadScenarios();
             }
             @Override public void onNothingSelected(AdapterView<?> parent) {}
@@ -317,6 +324,14 @@ public class AIRoleplayActivity extends AppCompatActivity implements TextToSpeec
                     if (aiResponse.length() == 0) {
                         // U7 FIX: French → Vietnamese.
                         addMessage("AI", "Xin lỗi, đã có lỗi xảy ra. Hãy thử lại nhé.");
+                    } else {
+                        // BUG #R3-L3 FIX: SSE fail giữa chừng (đã nhận một
+                        // phần response rồi mất kết nối) — nếu chỉ giữ
+                        // nguyên text dở dang user không biết là kết nối
+                        // ngắt hay AI thực sự dừng ở đó. Append ghi chú để
+                        // họ biết và có thể gửi lại tin nhắn.
+                        String partial = aiResponse.toString().trim();
+                        updateLastMessage(partial + " … ⚠️ (kết nối bị ngắt)");
                     }
                     tvStatus.setText("Phiên đang hoạt động");
                 });
