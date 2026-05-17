@@ -209,6 +209,15 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        // BUG U8 FIX : re-highlighter le tab Home à chaque retour dans MainActivity.
+        // Avant : `setSelectedItemId` n'était appelé que dans onCreate → si l'user
+        // partait vers WordDetailActivity puis revenait, le tab Home pouvait être
+        // dé-sélectionné (bug visuel : aucun tab en surbrillance).
+        BottomNavigationView navResume = findViewById(R.id.bottomNavigation);
+        if (navResume != null && navResume.getSelectedItemId() != R.id.nav_home) {
+            navResume.setSelectedItemId(R.id.nav_home);
+        }
+
         // BUG #11 FIX: cooldown 30s để tránh gọi 4 API requests mỗi lần user
         // quay về Home (kể cả khi chỉ tắt màn hình rồi bật lại, hoặc quay từ
         // Settings về). Tốn pin, tốn dữ liệu, có thể bị rate-limit.

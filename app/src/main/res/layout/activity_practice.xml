@@ -83,6 +83,14 @@
             android:layout_weight="1" android:text="@string/hint" android:backgroundTint="#FFF9C4"
             android:textColor="@color/lingua_dark" android:layout_marginEnd="4dp"/>
 
+        <!-- BUG U6 FIX : bouton « Tôi chưa biết » pour permettre à l'utilisateur
+             de révéler la bonne réponse au lieu d'être bloqué sur une question
+             (compte comme une mauvaise réponse → perd 1 ❤️). -->
+        <Button android:id="@+id/btnSkip" android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:text="Chưa biết" android:backgroundTint="#E0E0E0"
+            android:textColor="@color/lingua_dark" android:layout_marginEnd="4dp"
+            android:textSize="12sp"/>
+
         <Button android:id="@+id/btnSubmit" android:layout_width="0dp" android:layout_height="wrap_content"
             android:layout_weight="2" android:text="KIỂM TRA ✓"
             android:backgroundTint="@color/lingua_green" android:textColor="@color/white"

@@ -402,53 +402,58 @@ public class OnboardingActivity extends AppCompatActivity {
     //  Placement / starting level
     // -----------------------------------------------------------------------
     public static class PlacementFragment extends Fragment {
-        // BUG #20 FIX: request code cho placement test result.
-        private static final int REQ_PLACEMENT_TEST = 7321;
         private int selectedIndex = -1;
         private String[] currentLevels = {"N5", "N4", "N3", "N2", "N1"};
         private Button btnFinish;
         private ChoiceAdapter adapter;
 
         /**
-         * BUG #20 FIX: nhận kết quả placement test từ MockTestActivity. Khi
-         * MockTestActivity finish với RESULT_OK + extra "level", ta highlight
-         * mục tương ứng và cập nhật host.selectedLevel để finishOnboarding()
-         * dùng đúng level từ kết quả test (thay vì giá trị mặc định "N5"/"A1"...).
+         * BUG L7 FIX — Migration startActivityForResult → ActivityResultLauncher.
+         *
+         * Problème antérieur : `onActivityResult(int, int, Intent)` est déprécié
+         * et n'est PAS toujours appelé sur les Fragments hébergés via ViewPager2 +
+         * FragmentStateAdapter (selon la version d'AndroidX). Le résultat du
+         * placement test pouvait être routé vers `OnboardingActivity.onActivityResult`
+         * (qui n'override rien) au lieu de PlacementFragment → l'utilisateur
+         * finissait l'onboarding avec un level par défaut, ignorant son score.
+         *
+         * Solution : ActivityResultLauncher (registerForActivityResult) — pattern
+         * recommandé par AndroidX, fonctionne quel que soit le host du Fragment.
          */
-        @Override
-        public void onActivityResult(int requestCode, int resultCode, Intent data) {
-            super.onActivityResult(requestCode, resultCode, data);
-            if (requestCode != REQ_PLACEMENT_TEST || resultCode != android.app.Activity.RESULT_OK || data == null) {
-                return;
-            }
-            String suggested = data.getStringExtra("level");
-            if (suggested == null || suggested.isEmpty()) return;
+        private final androidx.activity.result.ActivityResultLauncher<Intent> placementLauncher =
+                registerForActivityResult(
+                        new androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult(),
+                        result -> {
+                            if (result.getResultCode() != android.app.Activity.RESULT_OK
+                                    || result.getData() == null) {
+                                return;
+                            }
+                            String suggested = result.getData().getStringExtra("level");
+                            if (suggested == null || suggested.isEmpty()) return;
 
-            OnboardingActivity host = (OnboardingActivity) requireActivity();
-            host.selectedLevel = suggested;
+                            OnboardingActivity host = (OnboardingActivity) requireActivity();
+                            host.selectedLevel = suggested;
 
-            // Tìm vị trí của level trong currentLevels để highlight.
-            for (int i = 0; i < currentLevels.length; i++) {
-                if (suggested.equalsIgnoreCase(currentLevels[i])) {
-                    selectedIndex = i;
-                    if (adapter != null) {
-                        int prev = adapter.selected;
-                        adapter.selected = i;
-                        if (prev >= 0) adapter.notifyItemChanged(prev);
-                        adapter.notifyItemChanged(i);
-                    }
-                    if (btnFinish != null) btnFinish.setEnabled(true);
-                    Toast.makeText(getContext(),
-                            "📊 Bài kiểm tra gợi ý trình độ: " + suggested,
-                            Toast.LENGTH_LONG).show();
-                    return;
-                }
-            }
-            // Level không nằm trong danh sách → chỉ thông báo
-            Toast.makeText(getContext(),
-                    "📊 Trình độ gợi ý: " + suggested + " (đã lưu)",
-                    Toast.LENGTH_LONG).show();
-        }
+                            for (int i = 0; i < currentLevels.length; i++) {
+                                if (suggested.equalsIgnoreCase(currentLevels[i])) {
+                                    selectedIndex = i;
+                                    if (adapter != null) {
+                                        int prev = adapter.selected;
+                                        adapter.selected = i;
+                                        if (prev >= 0) adapter.notifyItemChanged(prev);
+                                        adapter.notifyItemChanged(i);
+                                    }
+                                    if (btnFinish != null) btnFinish.setEnabled(true);
+                                    Toast.makeText(getContext(),
+                                            "📊 Bài kiểm tra gợi ý trình độ: " + suggested,
+                                            Toast.LENGTH_LONG).show();
+                                    return;
+                                }
+                            }
+                            Toast.makeText(getContext(),
+                                    "📊 Trình độ gợi ý: " + suggested + " (đã lưu)",
+                                    Toast.LENGTH_LONG).show();
+                        });
 
         @Override public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle b) {
             View v = inflater.inflate(R.layout.fragment_onboarding_placement, container, false);
@@ -487,10 +492,9 @@ public class OnboardingActivity extends AppCompatActivity {
                 Intent i = new Intent(getContext(), MockTestActivity.class);
                 i.putExtra("placement", true);
                 i.putExtra("language", host.selectedLanguage);
-                // BUG #20 FIX: dùng startActivityForResult để nhận lại level đề
-                // xuất từ MockTestActivity. Trước đây kết quả test không rõ ràng
-                // được cập nhật vào selectedLevel trước khi gọi finishOnboarding().
-                startActivityForResult(i, REQ_PLACEMENT_TEST);
+                // BUG L7 FIX : utiliser ActivityResultLauncher (cf. déclaration plus haut)
+                // au lieu de startActivityForResult (déprécié + buggy avec ViewPager2).
+                placementLauncher.launch(i);
             });
 
             btnFinish.setOnClickListener(x -> {
