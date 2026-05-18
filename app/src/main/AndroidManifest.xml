@@ -49,7 +49,12 @@
         <activity android:name=".activities.PracticeActivity" android:exported="false"/>
         <activity android:name=".activities.LessonActivity" android:exported="false"/>
         <activity android:name=".activities.LessonResultActivity" android:exported="false"/>
-        <activity android:name=".activities.FlashcardActivity" android:exported="false"/>
+        <!-- TD-5 FIX: FlashcardActivity là điểm đến của bottom-nav (qua SrsDeckPicker)
+             nên cũng cần singleTop để tránh duplicate instance khi user
+             FLAG_ACTIVITY_REORDER_TO_FRONT từ tab khác. -->
+        <activity android:name=".activities.FlashcardActivity"
+            android:exported="false"
+            android:launchMode="singleTop"/>
         <activity android:name=".activities.SrsDeckPickerActivity"
             android:exported="false"
             android:launchMode="singleTop"/>

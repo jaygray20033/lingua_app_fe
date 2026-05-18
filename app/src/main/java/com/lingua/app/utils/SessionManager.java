@@ -24,7 +24,11 @@ public class SessionManager {
     private static volatile SessionManager instance;
     private final SharedPreferences prefs;
 
-    public SessionManager(Context context) {
+    // CB-2 FIX: constructor private de enforce singleton pattern.
+    // Truoc day constructor public cho phep new SessionManager(ctx) tao instance
+    // thu hai, co the gay race condition khi doc/ghi token tren background thread
+    // -> user bi logout ngau nhien. Chi cho phep truy cap qua getInstance().
+    private SessionManager(Context context) {
         SharedPreferences tmp;
         try {
             MasterKey masterKey = new MasterKey.Builder(context.getApplicationContext())

@@ -127,6 +127,10 @@ public class MainActivity extends AppCompatActivity {
         // hiển thị thay vì fail silent.
         ensureNotificationPermission();
 
+        // UX-5 FIX: nếu lần finishOnboarding() trước fail vì offline / 5xx,
+        // pending sync sẽ được retry tự động khi user mở lại app (online).
+        OnboardingActivity.retryPendingSyncIfNeeded(getApplicationContext());
+
         tvUserName = findViewById(R.id.tvUserName);
         tvXp = findViewById(R.id.tvXp);
         tvStreak = findViewById(R.id.tvStreak);
@@ -391,7 +395,7 @@ public class MainActivity extends AppCompatActivity {
             }
             @Override public void onFailure(Call<ApiResponse<GamificationStats>> call, Throwable t) {
                 // U20 FIX: Snackbar voi action "Thu lai" cho loadStats.
-                runOnUiThread(() -> showRetrySnackbar("Khong tai duoc thong tin tien do", v -> loadStats()));
+                runOnUiThread(() -> showRetrySnackbar("Không tải được thông tin tiến độ", v -> loadStats()));
                 if (onDone != null) runOnUiThread(onDone);
             }
         });
@@ -424,7 +428,7 @@ public class MainActivity extends AppCompatActivity {
                 // U20 FIX: Snackbar voi action "Thu lai" thay vi de user mac ket.
                 runOnUiThread(() -> {
                     tvEnrollmentsEmpty.setVisibility(View.VISIBLE);
-                    showRetrySnackbar("Khong tai duoc danh sach khoa hoc", v -> loadEnrollments());
+                    showRetrySnackbar("Không tải được danh sách khóa học", v -> loadEnrollments());
                 });
                 if (onDone != null) runOnUiThread(onDone);
             }

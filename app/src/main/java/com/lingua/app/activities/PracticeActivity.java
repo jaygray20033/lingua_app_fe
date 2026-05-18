@@ -89,6 +89,16 @@ public class PracticeActivity extends AppCompatActivity implements TextToSpeech.
     private final Map<String, String> matchPairsCorrect = new HashMap<>();
     private final Map<String, String> matchUserPairs = new HashMap<>();
 
+    // UX-3 FIX: track xem user đã bấm 🔊 nghe ít nhất một lần cho bài
+    // LISTEN_SELECT / DICTATION hiện tại chưa. Khi chưa nghe → disable btnSubmit
+    // để user không bấm KIỂM TRA luôn với câu trống.
+    private boolean hasListenedThisExercise = false;
+
+    // TD-4 FIX: track xem TextToSpeech engine đã init thành công chưa, để
+    // disable btnListen nếu init fail (thiết bị không có TTS engine hoặc
+    // không hỗ trợ ngôn ngữ).
+    private boolean ttsReady = false;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -163,7 +173,14 @@ public class PracticeActivity extends AppCompatActivity implements TextToSpeech.
         btnSubmit.setOnClickListener(v -> submitAnswer());
         btnNext.setOnClickListener(v -> nextExercise());
         btnHint.setOnClickListener(v -> showHint());
-        btnListen.setOnClickListener(v -> playAudio());
+        btnListen.setOnClickListener(v -> {
+            // UX-3 FIX: đánh dấu user đã nghe ít nhất 1 lần, và enable btnSubmit
+            // cho các bài LISTEN_SELECT / DICTATION.
+            hasListenedThisExercise = true;
+            btnSubmit.setEnabled(true);
+            btnSubmit.setAlpha(1.0f);
+            playAudio();
+        });
         // BUG U6 FIX : « Tôi chưa biết » → soumet une réponse vide (comptée fausse,
         // l'app perd 1 ❤️) puis affiche la bonne réponse via le mécanisme normal.
         if (btnSkip != null) {
@@ -315,7 +332,12 @@ public class PracticeActivity extends AppCompatActivity implements TextToSpeech.
         tvFeedback.setVisibility(View.GONE);
         btnNext.setVisibility(View.GONE);
         btnSubmit.setVisibility(View.VISIBLE);
+        btnSubmit.setEnabled(true);
+        btnSubmit.setAlpha(1.0f);
         if (btnSkip != null) btnSkip.setVisibility(View.VISIBLE); // BUG U6
+
+        // UX-3 FIX: reset listen-flag mỗi khi chuyển bài mới.
+        hasListenedThisExercise = false;
         tvProgress.setText(String.format(Locale.getDefault(), "Bài tập %d/%d", index + 1, exercises.size()));
 
         // overall lesson progress
@@ -422,9 +444,21 @@ public class PracticeActivity extends AppCompatActivity implements TextToSpeech.
         btnListen.setVisibility(View.VISIBLE);
         etFillBlank.setText("");
 
-        if (prompt != null && prompt.has("text") && tts != null) {
+        // UX-3 FIX: disable btnSubmit cho đến khi user bấm 🔊 nghe ít nhất 1 lần.
+        // Tránh user bấm KIỂM TRA luôn với câu trống → trả lời sai oan.
+        btnSubmit.setEnabled(false);
+        btnSubmit.setAlpha(0.5f);
+
+        if (prompt != null && prompt.has("text") && tts != null && ttsReady) {
             String listenText = prompt.get("text").getAsString();
             tts.speak(listenText, TextToSpeech.QUEUE_FLUSH, null, null);
+            // UX-3 FIX: TTS đã tự phát một lần → coi như user đã nghe.
+            hasListenedThisExercise = true;
+            btnSubmit.setEnabled(true);
+            btnSubmit.setAlpha(1.0f);
+        } else if (!ttsReady && tts == null) {
+            // TD-4: nếu TTS không sẵn sàng, vẫn cho phép user bấm 🔊 để dùng
+            // audio URL (playAudio) — listener của btnListen sẽ enable btnSubmit.
         }
     }
 
@@ -643,11 +677,33 @@ public class PracticeActivity extends AppCompatActivity implements TextToSpeech.
         Exercise ex = exercises.get(currentIndex);
         String type = ex.type != null ? ex.type : "";
         if ("SENTENCE_ORDER".equals(type)) {
+            // LF-1 FIX: chặn submit khi user chưa kéo từ nào vào ô trả lời.
+            // Trước đây chuỗi rỗng bị gửi lên backend → đánh sai → mất tim.
+            if (orderAnswer.isEmpty()) {
+                Toast.makeText(this, "Hãy sắp xếp ít nhất một từ vào câu trả lời",
+                        Toast.LENGTH_SHORT).show();
+                return;
+            }
             String joined = android.text.TextUtils.join(" ", orderAnswer);
             submitSelectedAnswer(joined);
             return;
         }
         if ("MATCHING".equals(type) || "MATCH".equals(type)) {
+            // LF-2 FIX: yêu cầu user đã ghép đủ số cặp trước khi cho submit.
+            // Trước đây user chỉ cần ghép 1/4 cặp rồi bấm KIỂM TRA → backend
+            // chấm sai → mất tim oan.
+            if (!matchPairsCorrect.isEmpty()
+                    && matchUserPairs.size() < matchPairsCorrect.size()) {
+                Toast.makeText(this,
+                        "Hãy ghép tất cả " + matchPairsCorrect.size() + " cặp",
+                        Toast.LENGTH_SHORT).show();
+                return;
+            }
+            if (matchUserPairs.isEmpty()) {
+                Toast.makeText(this, "Hãy ghép các cặp trước khi kiểm tra",
+                        Toast.LENGTH_SHORT).show();
+                return;
+            }
             // serialize pairs as "left=right;left=right"
             StringBuilder sb = new StringBuilder();
             for (Map.Entry<String, String> e : matchUserPairs.entrySet()) {
@@ -665,6 +721,17 @@ public class PracticeActivity extends AppCompatActivity implements TextToSpeech.
             }
             submitSelectedAnswer(selectedMultiChoice);
             return;
+        }
+        // UX-3 FIX: với LISTEN_SELECT / DICTATION (dùng layoutFillBlank), yêu cầu
+        // user phải bấm "Nghe" ít nhất một lần trước khi cho phép submit. Nếu
+        // không user dễ bấm KIỂM TRA luôn với câu trống → trả lời sai mà không
+        // biết câu trả lời đúng là gì.
+        if ("LISTEN_SELECT".equals(type) || "DICTATION".equals(type)) {
+            if (!hasListenedThisExercise) {
+                Toast.makeText(this, "Hãy bấm 🔊 nghe trước khi trả lời",
+                        Toast.LENGTH_SHORT).show();
+                return;
+            }
         }
         String answer = etFillBlank.getText().toString().trim();
         if (answer.isEmpty()) {
@@ -968,14 +1035,26 @@ public class PracticeActivity extends AppCompatActivity implements TextToSpeech.
             @Override
             public void onResponse(Call<ApiResponse<LessonResult>> call, Response<ApiResponse<LessonResult>> response) {
                 progressBar.setVisibility(View.GONE);
+                // LF-7 FIX: chỉ trigger LESSON_COMPLETE quest khi backend xác nhận
+                // lesson đã được complete thành công. Trước đây quest được trigger
+                // ngay cả khi response 4xx/5xx → quest tăng nhưng XP không tính →
+                // inconsistency trong gamification stats.
+                boolean lessonCompleted = response.isSuccessful()
+                        && response.body() != null
+                        && response.body().isSuccess();
                 LessonResult result = response.body() != null ? response.body().getData() : null;
                 int xp = result != null ? result.xpEarned : 0;
                 int sp = result != null ? result.scorePercent : (score * 100 / Math.max(1, exercises.size()));
-                triggerLessonCompleteQuest();
+                if (lessonCompleted) {
+                    triggerLessonCompleteQuest();
+                }
                 openResultScreen(xp, sp);
             }
             @Override public void onFailure(Call<ApiResponse<LessonResult>> call, Throwable t) {
                 progressBar.setVisibility(View.GONE);
+                // LF-7 FIX: KHÔNG trigger quest khi completeLesson thất bại
+                // (network lỗi, server down) — nếu không quest tăng nhưng XP
+                // không được tính → user thấy stats không khớp.
                 openResultScreen(0, score * 100 / Math.max(1, exercises.size()));
             }
         });
@@ -1015,7 +1094,22 @@ public class PracticeActivity extends AppCompatActivity implements TextToSpeech.
     }
 
     @Override
-    public void onInit(int status) {}
+    public void onInit(int status) {
+        // TD-4 FIX: handle TTS init status. Nếu engine không available (thiết bị
+        // không cài, ngôn ngữ không support), trước đây tts.speak() fail im lặng.
+        // Giờ ta đánh dấu trạng thái ready để showListenMode() biết và xử lý.
+        ttsReady = (status == TextToSpeech.SUCCESS);
+        if (!ttsReady) {
+            runOnUiThread(() -> {
+                // Không Toast ồn ào — chỉ disable btnListen nếu nó đang hiển thị
+                // và thông báo nhẹ. User vẫn có thể đọc câu hỏi để trả lời.
+                if (btnListen != null && btnListen.getVisibility() == View.VISIBLE) {
+                    btnListen.setEnabled(false);
+                    btnListen.setAlpha(0.5f);
+                }
+            });
+        }
+    }
 
     @Override
     protected void onDestroy() {

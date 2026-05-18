@@ -4,6 +4,7 @@ import android.content.Intent;
 import android.media.MediaPlayer;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.Looper;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.*;
@@ -51,7 +52,10 @@ public class MockTestDetailActivity extends AppCompatActivity {
     private Button btnPrev, btnNext, btnSubmit, btnPlayAudio;
     private ProgressBar progressBarTest;
     private MediaPlayer mediaPlayer;
-    private final Handler timerHandler = new Handler();
+    // CB-4 FIX: phải chỉ rõ Looper.getMainLooper() cho Handler.
+    // Từ Android 11 (API 30) `new Handler()` bị deprecated và có thể throw
+    // RuntimeException nếu được khởi tạo trên non-Looper thread.
+    private final Handler timerHandler = new Handler(Looper.getMainLooper());
     private long durationMs = 0;
 
     @Override
@@ -82,17 +86,47 @@ public class MockTestDetailActivity extends AppCompatActivity {
     }
 
     private void loadDetail() {
+        // UX-7 FIX: hiện loading spinner trong khi đang fetch chi tiết bài thi.
+        if (progressBarTest != null) {
+            progressBarTest.setVisibility(View.VISIBLE);
+            progressBarTest.setIndeterminate(true);
+        }
         apiService.getMockTestDetail(mockTestId).enqueue(new Callback<ApiResponse<MockTestDetail>>() {
             @Override public void onResponse(Call<ApiResponse<MockTestDetail>> c, Response<ApiResponse<MockTestDetail>> r) {
+                // UX-7 FIX: tắt loading spinner khi load xong.
+                if (progressBarTest != null) progressBarTest.setIndeterminate(false);
                 if (r.isSuccessful() && r.body() != null && r.body().isSuccess()) {
                     detail = r.body().getData();
-                    if (detail != null) startTest();
+                    if (detail != null) {
+                        startTest();
+                    } else {
+                        showLoadErrorWithRetry("Dữ liệu bài thi rỗng");
+                    }
+                } else {
+                    showLoadErrorWithRetry("Không tải được bài thi");
                 }
             }
             @Override public void onFailure(Call<ApiResponse<MockTestDetail>> c, Throwable t) {
-                Toast.makeText(MockTestDetailActivity.this, "Lỗi: " + t.getMessage(), Toast.LENGTH_SHORT).show();
+                if (progressBarTest != null) progressBarTest.setIndeterminate(false);
+                // UX-7 FIX: hiện dialog "Thử lại" thay vì chỉ Toast rồi bỏ mặc.
+                showLoadErrorWithRetry("Lỗi: " + t.getMessage());
             }
         });
+    }
+
+    /**
+     * UX-7 FIX: hiển thị dialog lỗi kèm nút "Thử lại" thay vì để user mắc kẹt
+     * trên màn hình trắng khi loadDetail() fail.
+     */
+    private void showLoadErrorWithRetry(String message) {
+        if (isFinishing() || isDestroyed()) return;
+        new AlertDialog.Builder(this)
+                .setTitle("Không tải được bài thi")
+                .setMessage(message)
+                .setCancelable(false)
+                .setPositiveButton("Thử lại", (d, w) -> loadDetail())
+                .setNegativeButton("Thoát", (d, w) -> finish())
+                .show();
     }
 
     private void startTest() {
@@ -361,8 +395,15 @@ public class MockTestDetailActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
-        timerHandler.removeCallbacks(timerTick);
-        if (mediaPlayer != null) { try { mediaPlayer.release(); } catch (Exception ignore) {} }
+        // CB-3 FIX: đảm bảo release MediaPlayer + clear tất cả callbacks của
+        // timerHandler để không leak native AudioTrack handle khi user vào/
+        // thoát mock test liên tiếp. Trước đây chỉ removeCallbacks(timerTick)
+        // mà không remove các callback khác có thể đã được post.
+        timerHandler.removeCallbacksAndMessages(null);
+        if (mediaPlayer != null) {
+            try { mediaPlayer.release(); } catch (Exception ignore) {}
+            mediaPlayer = null;
+        }
         super.onDestroy();
     }
 

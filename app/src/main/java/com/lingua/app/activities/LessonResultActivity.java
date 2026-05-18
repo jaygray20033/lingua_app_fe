@@ -41,6 +41,11 @@ public class LessonResultActivity extends AppCompatActivity {
         tvAccuracy.setText(sp + "%");
         tvCorrect.setText(correct + " / " + total);
 
+        // UX-2 FIX: hiển thị placeholder "🔥 ..." ngay khi vào màn hình thay vì
+        // để ô streak trống trong 1–3 giây chờ API. Nếu API fail, placeholder
+        // sẽ được thay bằng "🔥 --" trong onFailure thay vì im lặng.
+        tvStreak.setText("🔥 ...");
+
         try {
             celebrate.startAnimation(AnimationUtils.loadAnimation(this, R.anim.bounce_celebrate));
         } catch (Exception ignored) {}
@@ -51,9 +56,15 @@ public class LessonResultActivity extends AppCompatActivity {
                 if (r.isSuccessful() && r.body() != null && r.body().getData() != null) {
                     int streak = r.body().getData().getStreak();
                     runOnUiThread(() -> tvStreak.setText("🔥 " + streak + " ngày"));
+                } else {
+                    // UX-2 FIX: fallback khi response không thành công.
+                    runOnUiThread(() -> tvStreak.setText("🔥 --"));
                 }
             }
-            @Override public void onFailure(Call<ApiResponse<GamificationStats>> c, Throwable t) {}
+            @Override public void onFailure(Call<ApiResponse<GamificationStats>> c, Throwable t) {
+                // UX-2 FIX: hiển thị "🔥 --" khi network fail thay vì để trống mãi.
+                runOnUiThread(() -> tvStreak.setText("🔥 --"));
+            }
         });
 
         // 6.4 FIX: thay vì chỉ finish() (sẽ rơi về PracticeActivity đã hết bài,

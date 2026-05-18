@@ -56,6 +56,15 @@ public class FlashcardActivity extends AppCompatActivity {
     private int statNew = 0, statLearning = 0, statReview = 0;
     private int reviewedCount = 0;
 
+    // LF-3 FIX: track thời điểm hiển thị card hiện tại để tính elapsed time thực
+    // tế khi submit review. Trước đây timeMs bị hardcode 5000ms — thuật toán
+    // SM-2 dựa vào thời gian phản hồi để điều chỉnh interval sẽ hoạt động sai.
+    private long cardShownMs = 0;
+
+    // UX-6 FIX: khóa button rating khi đang gửi review để user không bấm 2 lần
+    // (đặc biệt với legacy endpoint).
+    private boolean reviewLocked = false;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -192,6 +201,12 @@ public class FlashcardActivity extends AppCompatActivity {
         cardFront.setRotationY(0f);
         cardBack.setRotationY(0f);
         hideRatingButtons();
+
+        // LF-3 FIX: ghi nhớ thời điểm bắt đầu hiển thị card để tính elapsed time
+        // khi user rate. Đồng bộ với pattern ở PracticeActivity.
+        cardShownMs = System.currentTimeMillis();
+        // UX-6 FIX: mở lại khóa review cho card mới.
+        reviewLocked = false;
     }
 
     /** 3D flip animation using ObjectAnimator XML resource (or graceful fallback). */
@@ -218,19 +233,41 @@ public class FlashcardActivity extends AppCompatActivity {
     /** Submits an SRS rating to /api/srs/{reviewId}/review. */
     private void submitReview(String rating) {
         if (currentIndex >= cards.size()) return;
+        // UX-6 FIX: chặn double-submit — user có thể bấm AGAIN rồi GOOD nhanh
+        // sẽ gửi 2 review cho 1 card.
+        if (reviewLocked) return;
+        reviewLocked = true;
+
         SrsCard card = cards.get(currentIndex);
         long reviewId = card.getReviewId();
+
+        // LF-3 FIX: tính elapsed time thực tế từ lúc showCard() đến lúc user rate.
+        // Nếu vì lý do gì đó cardShownMs chưa được set (=0), fallback về 0L để
+        // backend biết không đo được, hơn là gửi 5000ms giả.
+        long elapsedMs = cardShownMs > 0 ? (System.currentTimeMillis() - cardShownMs) : 0L;
+
         if (reviewId <= 0) {
-            // No review id — fallback to legacy endpoint by card id
+            // No review id — fallback to legacy endpoint by card id.
+            // UX-6 FIX: Ẩn rating buttons NGAY trước khi gửi (trước đây chỉ ẩn ở
+            // nhánh SRS endpoint → với legacy endpoint user có thể bấm 2 lần).
+            hideRatingButtons();
+            progressBar.setVisibility(View.VISIBLE);
             Map<String, String> legacy = new HashMap<>();
             legacy.put("rating", rating);
+            // LF-3: legacy endpoint nhận String map — không có timeMs nguyên, nên
+            // ta vẫn đóng gói như chuỗi để backend log nếu cần.
+            legacy.put("timeMs", String.valueOf(elapsedMs));
             apiService.reviewCard(card.cardId > 0 ? card.cardId : card.id, legacy)
                     .enqueue(new Callback<ApiResponse<ReviewResult>>() {
                         @Override public void onResponse(Call<ApiResponse<ReviewResult>> c, Response<ApiResponse<ReviewResult>> r) {
+                            progressBar.setVisibility(View.GONE);
                             advanceAfterReview(r.isSuccessful() && r.body() != null && r.body().getData() != null
                                     ? r.body().getData().intervalDays : 0, null);
                         }
-                        @Override public void onFailure(Call<ApiResponse<ReviewResult>> c, Throwable t) { advanceAfterReview(0, null); }
+                        @Override public void onFailure(Call<ApiResponse<ReviewResult>> c, Throwable t) {
+                            progressBar.setVisibility(View.GONE);
+                            advanceAfterReview(0, null);
+                        }
                     });
             return;
         }
@@ -240,7 +277,9 @@ public class FlashcardActivity extends AppCompatActivity {
 
         Map<String, Object> body = new HashMap<>();
         body.put("rating", rating);
-        body.put("timeMs", 5000);
+        // LF-3 FIX: gửi elapsed time thực tế thay vì hardcode 5000ms — đồng bộ
+        // với PracticeActivity (BUG 6) để thuật toán SM-2 tính interval chính xác.
+        body.put("timeMs", elapsedMs);
 
         apiService.submitSrsReview(reviewId, body).enqueue(new Callback<ApiResponse<SrsReviewResult>>() {
             @Override

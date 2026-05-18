@@ -134,6 +134,22 @@ public class AIRoleplayActivity extends AppCompatActivity implements TextToSpeec
         ArrayAdapter<String> langAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, langs);
         langAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinnerLanguage.setAdapter(langAdapter);
+
+        // LF-6 FIX: pre-select spinner theo target_language của user (đã lưu khi
+        // onboarding hoặc Settings). Trước đây spinner mặc định "Nhật Bản" bất
+        // kể user đang học ngôn ngữ nào → user dễ bấm "Bắt đầu phiên" mà không
+        // để ý → AI nói nhầm ngôn ngữ.
+        String savedLang = getSharedPreferences("LinguaPrefs", MODE_PRIVATE)
+                .getString(OnboardingActivity.KEY_TARGET_LANG, "ja");
+        int langIdx = -1;
+        for (int i = 0; i < langCodes.length; i++) {
+            if (langCodes[i].equals(savedLang)) { langIdx = i; break; }
+        }
+        if (langIdx >= 0) {
+            spinnerLanguage.setSelection(langIdx);
+            selectedLanguage = langCodes[langIdx];
+        }
+
         spinnerLanguage.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {

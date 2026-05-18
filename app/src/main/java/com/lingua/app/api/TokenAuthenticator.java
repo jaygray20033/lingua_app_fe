@@ -28,6 +28,27 @@ public class TokenAuthenticator implements Authenticator {
     private final Context context;
     private final SessionManager session;
 
+    // TD-3 FIX: tái sử dụng một OkHttpClient duy nhất cho mọi refresh request.
+    // Trước đây mỗi lần 401 lại `new OkHttpClient()` → tạo thread pool +
+    // connection pool mới, tốn kém và làm phồng memory nếu user gặp 401 liên
+    // tiếp (ví dụ token refresh xong nhưng các request song song chưa kịp dùng
+    // token mới → mỗi request lại trigger authenticate). Singleton + lazy init.
+    private static volatile OkHttpClient sRefreshClient;
+
+    private static OkHttpClient getRefreshClient() {
+        if (sRefreshClient == null) {
+            synchronized (TokenAuthenticator.class) {
+                if (sRefreshClient == null) {
+                    sRefreshClient = new OkHttpClient.Builder()
+                            // Không gắn authenticator/interceptor → tránh đệ quy
+                            // vô tận khi refresh endpoint cũng trả 401.
+                            .build();
+                }
+            }
+        }
+        return sRefreshClient;
+    }
+
     public TokenAuthenticator(Context context) {
         this.context = context.getApplicationContext();
         this.session = SessionManager.getInstance(context);
@@ -48,7 +69,8 @@ public class TokenAuthenticator implements Authenticator {
 
         // Call refresh endpoint synchronously
         try {
-            OkHttpClient client = new OkHttpClient();
+            // TD-3 FIX: dùng singleton client thay vì tạo mới.
+            OkHttpClient client = getRefreshClient();
             // BUG #13 FIX: ghép URL an toàn — đảm bảo BASE_URL kết thúc bằng "/"
             // trước khi nối "auth/refresh". Trước đây nếu ai đó cấu hình BASE_URL
             // không có trailing slash, URL sẽ thiếu "/" giữa segment.

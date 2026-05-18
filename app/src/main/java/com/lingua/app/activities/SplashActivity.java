@@ -39,12 +39,25 @@ public class SplashActivity extends AppCompatActivity {
 
         // Create notification channels and re-schedule the reminder if the user
         // had previously opted in.
-        NotificationScheduler.ensureChannels(this);
-        if (prefs.getBoolean(SettingsActivity.KEY_DAILY_REMINDER, true)) {
-            int hour = prefs.getInt(SettingsActivity.KEY_REMINDER_HOUR, 20);
-            int min = prefs.getInt(SettingsActivity.KEY_REMINDER_MIN, 0);
-            NotificationScheduler.scheduleDaily(this, hour, min);
-        }
+        // TD-2 FIX: NotificationScheduler.scheduleDaily() bên trong gọi
+        // WorkManager.enqueue() — lần khởi động đầu trên thiết bị mới, init
+        // WorkManager có thể block UI thread 100–300ms gây chớp màn hình splash.
+        // Đẩy cả ensureChannels + scheduleDaily ra background thread; chúng
+        // không phụ thuộc View nên hoàn toàn an toàn.
+        final boolean reminderEnabled = prefs.getBoolean(SettingsActivity.KEY_DAILY_REMINDER, true);
+        final int reminderHour = prefs.getInt(SettingsActivity.KEY_REMINDER_HOUR, 20);
+        final int reminderMin  = prefs.getInt(SettingsActivity.KEY_REMINDER_MIN, 0);
+        new Thread(() -> {
+            try {
+                NotificationScheduler.ensureChannels(getApplicationContext());
+                if (reminderEnabled) {
+                    NotificationScheduler.scheduleDaily(getApplicationContext(),
+                            reminderHour, reminderMin);
+                }
+            } catch (Throwable ignore) {
+                // Defensive: nếu WorkManager init fail, đừng crash splash.
+            }
+        }, "notif-scheduler-init").start();
 
         // BUG #17 FIX: giảm delay từ 1500ms xuống 800ms. Trên thiết bị nhanh,
         // 1.5 giây là quá dư thừa và làm user cảm thấy app khởi động chậm.

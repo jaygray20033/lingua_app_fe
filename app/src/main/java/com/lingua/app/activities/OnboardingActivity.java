@@ -149,6 +149,13 @@ public class OnboardingActivity extends AppCompatActivity {
         }
     }
 
+    // UX-5 FIX: keys cho retry queue khi backend sync that bai (offline / 5xx).
+    // Lan mo app sau, MainActivity / SplashActivity se doc cac key nay va retry
+    // lai de user khong bi mat onboarding preferences khi login tu thiet bi khac.
+    public static final String KEY_PENDING_PROFILE_LANG  = "pending_profile_lang";
+    public static final String KEY_PENDING_PROFILE_LEVEL = "pending_profile_level";
+    public static final String KEY_PENDING_DAILY_GOAL    = "pending_daily_goal";
+
     /** Saves user choices locally + on the backend, then opens MainActivity. */
     public void finishOnboarding() {
         SharedPreferences prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
@@ -159,21 +166,52 @@ public class OnboardingActivity extends AppCompatActivity {
                 .putInt(KEY_DAILY_GOAL, selectedDailyGoal)
                 .apply();
 
+        // UX-5 FIX: queue ca hai request vao pending list truoc khi gui.
+        // Khi onResponse thanh cong, xoa tuong ung. Neu fail, pending van con
+        // de retry lai lan sau (retryPendingSyncIfNeeded).
+        prefs.edit()
+                .putString(KEY_PENDING_PROFILE_LANG, selectedLanguage)
+                .putString(KEY_PENDING_PROFILE_LEVEL, selectedLevel)
+                .putInt(KEY_PENDING_DAILY_GOAL, selectedDailyGoal)
+                .apply();
+
         // Push to backend (best-effort).
         LinguaApiService api = ApiClient.getService(this);
         Map<String, Object> profile = new HashMap<>();
         profile.put("targetLanguage", selectedLanguage);
         profile.put("currentLevel", selectedLevel);
-        api.updateProfile(profile).enqueue(noopUser());
+        api.updateProfile(profile).enqueue(new Callback<ApiResponse<User>>() {
+            @Override public void onResponse(Call<ApiResponse<User>> c, Response<ApiResponse<User>> r) {
+                if (r.isSuccessful() && r.body() != null && r.body().isSuccess()) {
+                    // Xoa pending khi sync thanh cong.
+                    getSharedPreferences(PREFS, MODE_PRIVATE).edit()
+                            .remove(KEY_PENDING_PROFILE_LANG)
+                            .remove(KEY_PENDING_PROFILE_LEVEL)
+                            .apply();
+                }
+            }
+            @Override public void onFailure(Call<ApiResponse<User>> c, Throwable t) {
+                // UX-5: giu pending de retry lai sau.
+            }
+        });
 
-        // BUG B7 FIX: backend đọc field `dailyXpGoal` (chứ không phải `dailyGoal` / `xp`).
-        // Nếu thiếu key này, daily_xp_goal sẽ không bao giờ được lưu vào DB.
-        // (BUG #19 FIX: comment tiếng Pháp → tiếng Việt.)
+        // BUG B7 FIX: backend doc field `dailyXpGoal` (chu khong phai `dailyGoal` / `xp`).
         Map<String, Object> goal = new HashMap<>();
         goal.put("dailyXpGoal", selectedDailyGoal);
         goal.put("dailyGoal", selectedDailyGoal); // backward compat
         goal.put("xp", selectedDailyGoal);        // backward compat
-        api.setDailyGoal(goal).enqueue(noopObject());
+        api.setDailyGoal(goal).enqueue(new Callback<ApiResponse<Object>>() {
+            @Override public void onResponse(Call<ApiResponse<Object>> c, Response<ApiResponse<Object>> r) {
+                if (r.isSuccessful() && r.body() != null && r.body().isSuccess()) {
+                    getSharedPreferences(PREFS, MODE_PRIVATE).edit()
+                            .remove(KEY_PENDING_DAILY_GOAL)
+                            .apply();
+                }
+            }
+            @Override public void onFailure(Call<ApiResponse<Object>> c, Throwable t) {
+                // UX-5: giu pending de retry lai sau.
+            }
+        });
 
         Toast.makeText(this, "🎉 Sẵn sàng học rồi!", Toast.LENGTH_SHORT).show();
         Intent i = new Intent(this, MainActivity.class);
@@ -182,18 +220,49 @@ public class OnboardingActivity extends AppCompatActivity {
         finish();
     }
 
-    private Callback<ApiResponse<User>> noopUser() {
-        return new Callback<ApiResponse<User>>() {
-            @Override public void onResponse(Call<ApiResponse<User>> c, Response<ApiResponse<User>> r) {}
-            @Override public void onFailure(Call<ApiResponse<User>> c, Throwable t) {}
-        };
-    }
+    /**
+     * UX-5 FIX: helper tinh de MainActivity goi khi user quay lai app online.
+     * Neu con pending onboarding sync (do lan truoc offline), retry lai dung
+     * 1 lan; neu van fail, giu pending cho lan sau.
+     */
+    public static void retryPendingSyncIfNeeded(android.content.Context ctx) {
+        final SharedPreferences prefs = ctx.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE);
+        String pendingLang  = prefs.getString(KEY_PENDING_PROFILE_LANG, null);
+        String pendingLevel = prefs.getString(KEY_PENDING_PROFILE_LEVEL, null);
+        int pendingGoal     = prefs.getInt(KEY_PENDING_DAILY_GOAL, -1);
+        if (pendingLang == null && pendingLevel == null && pendingGoal < 0) return;
 
-    private Callback<ApiResponse<Object>> noopObject() {
-        return new Callback<ApiResponse<Object>>() {
-            @Override public void onResponse(Call<ApiResponse<Object>> c, Response<ApiResponse<Object>> r) {}
-            @Override public void onFailure(Call<ApiResponse<Object>> c, Throwable t) {}
-        };
+        LinguaApiService api = ApiClient.getService(ctx);
+        if (pendingLang != null || pendingLevel != null) {
+            Map<String, Object> profile = new HashMap<>();
+            if (pendingLang != null) profile.put("targetLanguage", pendingLang);
+            if (pendingLevel != null) profile.put("currentLevel", pendingLevel);
+            api.updateProfile(profile).enqueue(new Callback<ApiResponse<User>>() {
+                @Override public void onResponse(Call<ApiResponse<User>> c, Response<ApiResponse<User>> r) {
+                    if (r.isSuccessful() && r.body() != null && r.body().isSuccess()) {
+                        prefs.edit()
+                                .remove(KEY_PENDING_PROFILE_LANG)
+                                .remove(KEY_PENDING_PROFILE_LEVEL)
+                                .apply();
+                    }
+                }
+                @Override public void onFailure(Call<ApiResponse<User>> c, Throwable t) {}
+            });
+        }
+        if (pendingGoal >= 0) {
+            Map<String, Object> goal = new HashMap<>();
+            goal.put("dailyXpGoal", pendingGoal);
+            goal.put("dailyGoal", pendingGoal);
+            goal.put("xp", pendingGoal);
+            api.setDailyGoal(goal).enqueue(new Callback<ApiResponse<Object>>() {
+                @Override public void onResponse(Call<ApiResponse<Object>> c, Response<ApiResponse<Object>> r) {
+                    if (r.isSuccessful() && r.body() != null && r.body().isSuccess()) {
+                        prefs.edit().remove(KEY_PENDING_DAILY_GOAL).apply();
+                    }
+                }
+                @Override public void onFailure(Call<ApiResponse<Object>> c, Throwable t) {}
+            });
+        }
     }
 
     // -----------------------------------------------------------------------

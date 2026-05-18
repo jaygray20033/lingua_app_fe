@@ -7,8 +7,12 @@ import android.os.Bundle;
 import android.view.View;
 import android.widget.Button;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
+
+import java.util.ArrayList;
+import java.util.List;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
@@ -60,6 +64,15 @@ public class SettingsActivity extends AppCompatActivity {
     public static final String KEY_AUTOPLAY = "autoplay_audio";
     public static final String KEY_OFFLINE = "offline_cache";
 
+    // UX-8 FIX: lưu scroll position tạm khi recreate() vì toggle Dark Mode.
+    private static int sPendingScrollY = -1;
+
+    // LF-5 FIX: cache danh sách ngôn ngữ lấy được từ backend
+    // (/api/gamification/languages). Fallback về 4 ngôn ngữ mặc định nếu
+    // API chưa trả về (mạng lỗi / lần đầu mở Settings).
+    private final List<String> langCodes = new ArrayList<>();
+    private final List<String> langLabels = new ArrayList<>();
+
     private SharedPreferences prefs;
 
     private SwitchCompat switchDarkMode, switchSound, switchHaptic, switchDailyReminder;
@@ -95,6 +108,17 @@ public class SettingsActivity extends AppCompatActivity {
         loadCurrentValues();
         setupListeners();
         applyDynamicVersion();
+        // LF-5 FIX: load ngôn ngữ động từ backend ngay khi vào Settings, để khi
+        // user mở dialog đổi ngôn ngữ đã có danh sách mới nhất.
+        loadAvailableLanguages();
+
+        // UX-8 FIX: khôi phục scroll position sau khi recreate() vì toggle Dark Mode.
+        final ScrollView sv = findViewById(R.id.scrollSettings);
+        if (sv != null && sPendingScrollY >= 0) {
+            final int y = sPendingScrollY;
+            sPendingScrollY = -1;
+            sv.post(() -> sv.scrollTo(0, y));
+        }
     }
 
     /**
@@ -141,6 +165,10 @@ public class SettingsActivity extends AppCompatActivity {
             AppCompatDelegate.setDefaultNightMode(isChecked
                     ? AppCompatDelegate.MODE_NIGHT_YES
                     : AppCompatDelegate.MODE_NIGHT_NO);
+            // UX-8 FIX: lưu scroll position trước khi recreate để user không
+            // bị nhảy ngược lên đầu màn hình khi toggle Dark Mode.
+            ScrollView sv = findViewById(R.id.scrollSettings);
+            sPendingScrollY = (sv != null) ? sv.getScrollY() : -1;
             recreate();
         });
 
@@ -253,14 +281,100 @@ public class SettingsActivity extends AppCompatActivity {
                 .show();
     }
 
+    /**
+     * LF-5 FIX: load danh sách ngôn ngữ động từ backend để nhất quán với
+     * OnboardingActivity.LanguageFragment. Trước đây Settings hardcode 4 ngôn
+     * ngữ → nếu backend thêm Pháp/Tây Ban Nha/Đức..., user thấy trong
+     * Onboarding nhưng không đổi được trong Settings.
+     *
+     * Trong khi chờ API, ta seed bằng 4 ngôn ngữ mặc định để dialog vẫn hoạt
+     * động được ngay cả khi offline.
+     */
+    private void loadAvailableLanguages() {
+        // Seed fallback — hiển thị ngay khi API chưa trả về.
+        langCodes.clear();
+        langLabels.clear();
+        langCodes.add("ja"); langLabels.add("🇯🇵 Tiếng Nhật");
+        langCodes.add("en"); langLabels.add("🇬🇧 Tiếng Anh");
+        langCodes.add("zh"); langLabels.add("🇨🇳 Tiếng Trung");
+        langCodes.add("ko"); langLabels.add("🇰🇷 Tiếng Hàn");
+
+        LinguaApiService api = ApiClient.getService(getApplicationContext());
+        api.getLanguages().enqueue(new Callback<ApiResponse<java.util.List<Map<String, Object>>>>() {
+            @Override
+            public void onResponse(@NonNull Call<ApiResponse<java.util.List<Map<String, Object>>>> call,
+                                   @NonNull Response<ApiResponse<java.util.List<Map<String, Object>>>> r) {
+                if (!r.isSuccessful() || r.body() == null || r.body().getData() == null) return;
+                java.util.List<Map<String, Object>> data = r.body().getData();
+                if (data.isEmpty()) return;
+                langCodes.clear();
+                langLabels.clear();
+                for (Map<String, Object> lg : data) {
+                    String code = String.valueOf(lg.getOrDefault("code", "?"));
+                    String name = String.valueOf(lg.getOrDefault("name", code));
+                    String flag = String.valueOf(lg.getOrDefault("flag_emoji",
+                            lg.getOrDefault("flagEmoji", "🏳️")));
+                    if ("null".equals(flag)) flag = "🏳️";
+                    langCodes.add(code);
+                    langLabels.add(flag + " " + name);
+                }
+                // Cập nhật nhãn hiện tại nếu ngôn ngữ đã chọn nằm trong list mới.
+                String currentCode = prefs.getString(OnboardingActivity.KEY_TARGET_LANG, "ja");
+                int idx = langCodes.indexOf(currentCode);
+                if (idx >= 0) tvLanguage.setText(langLabels.get(idx));
+            }
+            @Override
+            public void onFailure(@NonNull Call<ApiResponse<java.util.List<Map<String, Object>>>> call,
+                                  @NonNull Throwable t) {
+                // Im lặng — vẫn dùng fallback 4 ngôn ngữ mặc định.
+            }
+        });
+    }
+
     private void showLanguageDialog() {
-        final String[] codes = {"ja", "en", "zh", "ko"};
-        String[] labels = {"🇯🇵 Tiếng Nhật", "🇬🇧 Tiếng Anh", "🇨🇳 Tiếng Trung", "🇰🇷 Tiếng Hàn"};
+        // LF-5 FIX: dùng danh sách động (đã load từ backend) thay vì hardcode.
+        if (langCodes.isEmpty()) {
+            loadAvailableLanguages();
+        }
+        final String[] codes = langCodes.toArray(new String[0]);
+        final String[] labels = langLabels.toArray(new String[0]);
         new AlertDialog.Builder(this)
                 .setTitle("🌍 Ngôn ngữ đang học")
                 .setItems(labels, (d, w) -> {
-                    prefs.edit().putString(OnboardingActivity.KEY_TARGET_LANG, codes[w]).apply();
+                    final String newCode = codes[w];
+                    prefs.edit().putString(OnboardingActivity.KEY_TARGET_LANG, newCode).apply();
                     tvLanguage.setText(labels[w]);
+
+                    // LF-4 FIX: sync ngôn ngữ lên backend để recommendation engine
+                    // biết user đổi target language. Trước đây chỉ lưu local nên
+                    // backend vẫn nghĩ user đang học ngôn ngữ cũ; nếu user login
+                    // trên thiết bị khác, language bị reset.
+                    LinguaApiService api = ApiClient.getService(getApplicationContext());
+                    Map<String, Object> body = new HashMap<>();
+                    body.put("targetLanguage", newCode);
+                    body.put("target_language", newCode); // alternate snake_case key
+                    api.updateProfile(body).enqueue(new Callback<com.lingua.app.models.ApiResponse<com.lingua.app.models.User>>() {
+                        @Override
+                        public void onResponse(@NonNull Call<com.lingua.app.models.ApiResponse<com.lingua.app.models.User>> c,
+                                               @NonNull Response<com.lingua.app.models.ApiResponse<com.lingua.app.models.User>> r) {
+                            if (r.isSuccessful() && r.body() != null && r.body().isSuccess()) {
+                                Toast.makeText(SettingsActivity.this,
+                                        "✅ Đã đổi ngôn ngữ đang học",
+                                        Toast.LENGTH_SHORT).show();
+                            } else {
+                                Toast.makeText(SettingsActivity.this,
+                                        "⚠️ Chưa đồng bộ được — đã lưu cục bộ",
+                                        Toast.LENGTH_SHORT).show();
+                            }
+                        }
+                        @Override
+                        public void onFailure(@NonNull Call<com.lingua.app.models.ApiResponse<com.lingua.app.models.User>> c,
+                                              @NonNull Throwable t) {
+                            Toast.makeText(SettingsActivity.this,
+                                    "⚠️ Mất kết nối — ngôn ngữ sẽ đồng bộ sau",
+                                    Toast.LENGTH_SHORT).show();
+                        }
+                    });
                 })
                 .setNegativeButton("Huỷ", null)
                 .show();

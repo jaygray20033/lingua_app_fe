@@ -1,6 +1,5 @@
 package com.lingua.app.activities;
 
-import android.app.Activity;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
@@ -11,6 +10,9 @@ import android.text.InputType;
 import android.util.Base64;
 import android.view.View;
 import android.widget.*;
+
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 
 import java.io.ByteArrayOutputStream;
 
@@ -43,7 +45,7 @@ import retrofit2.Response;
  *   - Quick links to MyCourses and Favorites.
  */
 public class ProfileActivity extends AppCompatActivity {
-    private static final int REQUEST_PICK_AVATAR = 4321;
+    // CB-1 FIX: Bỏ REQUEST_PICK_AVATAR vì đã chuyển sang ActivityResultLauncher
     private static final String PREFS = "LinguaPrefs";
 
     private TextView tvDisplayName, tvEmail, tvXp, tvLevel, tvStreak, tvGems;
@@ -323,56 +325,58 @@ public class ProfileActivity extends AppCompatActivity {
         });
     }
 
+    // CB-1 FIX: Thay startActivityForResult/onActivityResult (deprecated từ API 29+)
+    // bằng ActivityResultLauncher chuẩn — nhất quán với OnboardingActivity.
+    private final ActivityResultLauncher<String> pickAvatarLauncher =
+            registerForActivityResult(new ActivityResultContracts.GetContent(), uri -> {
+                if (uri == null) return;
+                handleAvatarUri(uri);
+            });
+
     private void pickAvatar() {
-        Intent intent = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
-        startActivityForResult(intent, REQUEST_PICK_AVATAR);
+        // CB-1 FIX: dùng ActivityResultContracts.GetContent() với MIME type "image/*"
+        pickAvatarLauncher.launch("image/*");
     }
 
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == REQUEST_PICK_AVATAR && resultCode == Activity.RESULT_OK && data != null) {
-            Uri uri = data.getData();
-            if (uri == null) return;
-            try {
-                Bitmap bm = MediaStore.Images.Media.getBitmap(getContentResolver(), uri);
+    /** CB-1 FIX: tách logic xử lý ảnh ra method riêng để ActivityResultLauncher gọi. */
+    private void handleAvatarUri(Uri uri) {
+        try {
+            Bitmap bm = MediaStore.Images.Media.getBitmap(getContentResolver(), uri);
 
-                // U13 FIX: không gửi `uri.toString()` (content://...) nữa — server
-                // không thể truy cập được. Ta scale lại, nén JPEG, rồi gửi base64
-                // lên backend; backend lưu lại và trả về URL công khai.
-                // (BUG #19 FIX: comment tiếng Pháp → tiếng Việt.)
-                Bitmap scaled = scaleBitmap(bm, 512);
-                imgAvatar.setImageBitmap(scaled);
-                tvAvatar.setVisibility(View.GONE);
-                Toast.makeText(this, "Đang tải ảnh lên...", Toast.LENGTH_SHORT).show();
+            // U13 FIX: không gửi `uri.toString()` (content://...) nữa — server
+            // không thể truy cập được. Ta scale lại, nén JPEG, rồi gửi base64
+            // lên backend; backend lưu lại và trả về URL công khai.
+            Bitmap scaled = scaleBitmap(bm, 512);
+            imgAvatar.setImageBitmap(scaled);
+            imgAvatar.setVisibility(View.VISIBLE);
+            tvAvatar.setVisibility(View.GONE);
+            Toast.makeText(this, "Đang tải ảnh lên...", Toast.LENGTH_SHORT).show();
 
-                ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                scaled.compress(Bitmap.CompressFormat.JPEG, 80, baos);
-                String b64 = Base64.encodeToString(baos.toByteArray(), Base64.NO_WRAP);
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            scaled.compress(Bitmap.CompressFormat.JPEG, 80, baos);
+            String b64 = Base64.encodeToString(baos.toByteArray(), Base64.NO_WRAP);
 
-                // Gửi avatarBase64 (field mới) + contentType. Backend
-                // (updateProfile hoặc /upload/avatar) lưu lại và trả về URL công khai.
-                // (BUG #19 FIX: comment tiếng Pháp → tiếng Việt.)
-                Map<String, Object> body = new HashMap<>();
-                body.put("avatarBase64", b64);
-                body.put("avatarContentType", "image/jpeg");
-                apiService.updateProfile(body).enqueue(new Callback<ApiResponse<User>>() {
-                    @Override public void onResponse(Call<ApiResponse<User>> c, Response<ApiResponse<User>> r) {
-                        if (r.isSuccessful() && r.body() != null && r.body().isSuccess()) {
-                            Toast.makeText(ProfileActivity.this, "✅ Đã cập nhật ảnh đại diện", Toast.LENGTH_SHORT).show();
-                        } else {
-                            String msg = r.body() != null && r.body().getMessage() != null
-                                    ? r.body().getMessage() : "Không lưu được ảnh";
-                            Toast.makeText(ProfileActivity.this, msg, Toast.LENGTH_SHORT).show();
-                        }
+            // Gửi avatarBase64 (field mới) + contentType. Backend
+            // (updateProfile hoặc /upload/avatar) lưu lại và trả về URL công khai.
+            Map<String, Object> body = new HashMap<>();
+            body.put("avatarBase64", b64);
+            body.put("avatarContentType", "image/jpeg");
+            apiService.updateProfile(body).enqueue(new Callback<ApiResponse<User>>() {
+                @Override public void onResponse(Call<ApiResponse<User>> c, Response<ApiResponse<User>> r) {
+                    if (r.isSuccessful() && r.body() != null && r.body().isSuccess()) {
+                        Toast.makeText(ProfileActivity.this, "✅ Đã cập nhật ảnh đại diện", Toast.LENGTH_SHORT).show();
+                    } else {
+                        String msg = r.body() != null && r.body().getMessage() != null
+                                ? r.body().getMessage() : "Không lưu được ảnh";
+                        Toast.makeText(ProfileActivity.this, msg, Toast.LENGTH_SHORT).show();
                     }
-                    @Override public void onFailure(Call<ApiResponse<User>> c, Throwable t) {
-                        Toast.makeText(ProfileActivity.this, "Lỗi tải ảnh: " + t.getMessage(), Toast.LENGTH_SHORT).show();
-                    }
-                });
-            } catch (Exception e) {
-                Toast.makeText(this, "Không đọc được ảnh: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-            }
+                }
+                @Override public void onFailure(Call<ApiResponse<User>> c, Throwable t) {
+                    Toast.makeText(ProfileActivity.this, "Lỗi tải ảnh: " + t.getMessage(), Toast.LENGTH_SHORT).show();
+                }
+            });
+        } catch (Exception e) {
+            Toast.makeText(this, "Không đọc được ảnh: " + e.getMessage(), Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -398,6 +402,22 @@ public class ProfileActivity extends AppCompatActivity {
         if (btnLogout != null) {
             btnLogout.setEnabled(false);
             btnLogout.setAlpha(0.5f);
+            // UX-4 FIX: hiển thị feedback loading trên chính nút "Đăng xuất"
+            // (đổi text + thêm spinner ký tự) để user trên mạng chậm biết app
+            // đang xử lý chứ không bị đơ. Trước đây chỉ mờ đi.
+            btnLogout.setText("⏳ Đang đăng xuất...");
+        }
+        // UX-4 FIX: hiển thị Snackbar không-thể-dismiss để user biết quá trình
+        // đăng xuất đang chạy, sẽ tự biến mất khi finishLogout() finish() activity.
+        final com.google.android.material.snackbar.Snackbar bar;
+        try {
+            bar = com.google.android.material.snackbar.Snackbar.make(
+                    findViewById(android.R.id.content),
+                    "Đang đăng xuất...",
+                    com.google.android.material.snackbar.Snackbar.LENGTH_INDEFINITE);
+            bar.show();
+        } catch (Throwable t) {
+            // Snackbar có thể null trên một số theme — ignore.
         }
         apiService.logout().enqueue(new Callback<ApiResponse<Void>>() {
             @Override public void onResponse(Call<ApiResponse<Void>> c, Response<ApiResponse<Void>> r) { finishLogout(); }
