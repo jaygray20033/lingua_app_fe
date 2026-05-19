@@ -81,10 +81,12 @@ public class LoginActivity extends AppCompatActivity {
     }
 
     private void showForgotPasswordDialog() {
+        // BUG-027 FIX: đọc email & message từ strings.xml thay vì hardcode trong code.
+        // Khi domain thay đổi (vd: support@lingua.io), QA chỉ cần sửa strings.xml.
+        String supportEmail = getString(R.string.support_email);
         new AlertDialog.Builder(this)
-                .setTitle("Quên mật khẩu")
-                .setMessage("Vui lòng liên hệ bộ phận hỗ trợ tại support@lingua.app "
-                        + "để đặt lại mật khẩu. Tính năng đặt lại tự động sẽ có trong bản cập nhật sắp tới.")
+                .setTitle(R.string.forgot_password_title)
+                .setMessage(getString(R.string.forgot_password_message, supportEmail))
                 .setPositiveButton("Đã hiểu", null)
                 .show();
     }

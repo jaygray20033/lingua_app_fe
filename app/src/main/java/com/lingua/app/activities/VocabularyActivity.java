@@ -270,6 +270,11 @@ public class VocabularyActivity extends AppCompatActivity implements TextToSpeec
                             List<Word> words = response.body().getData();
                             int newCount = words != null ? words.size() : 0;
                             if (newCount < 30) hasMore = false;
+                            // BUG-021 FIX: khi user search, backend hi\u1ebfm khi tr\u1ea3 v\u1ec1 \u0111\u00fang 30 k\u1ebft qu\u1ea3
+                            // nh\u01b0ng n\u1ebfu c\u00f3, code c\u0169 v\u1eabn gi\u1eef hasMore=true \u2192 scroll xu\u1ed1ng fetch
+                            // page 2 cho search \u2192 backend tr\u1ea3 empty \u2192 flicker UI. V\u1edbi search query,
+                            // gi\u1edbi h\u1ea1n l\u1ea1i \u1edf 1 trang \u0111\u1ec3 tr\u00e1nh tr\u01b0\u1eddng h\u1ee3p n\u00e0y.
+                            if (!search.isEmpty()) hasMore = false;
                             int previousSize = wordList.size();
                             if (firstPage) wordList.clear();
                             if (words != null) wordList.addAll(words);

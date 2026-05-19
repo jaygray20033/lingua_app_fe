@@ -32,6 +32,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -175,6 +176,40 @@ public class OnboardingActivity extends AppCompatActivity {
                 .putInt(KEY_PENDING_DAILY_GOAL, selectedDailyGoal)
                 .apply();
 
+        // BUG-008 FIX: trước đây 2 API request fire-and-forget, sau đó
+        // startActivity(MainActivity) chạy NGAY → MainActivity.loadStats() có thể
+        // đọc data cũ vì setDailyGoal chưa apply trên backend. Giờ ta hiển thị
+        // dialog chờ ngắn ~1s, đồng bộ đợi CẢ hai callback xong (success hoặc fail)
+        // rồi mới navigate — dùng AtomicInteger đếm pending; ngoài ra có
+        // safety timeout 3s để tránh user kẹt nếu mạng timeout.
+        final AtomicInteger pending = new AtomicInteger(2);
+        final android.os.Handler navHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+        // Loading dialog (không cancelable) trong khi sync.
+        final androidx.appcompat.app.AlertDialog loading =
+                new androidx.appcompat.app.AlertDialog.Builder(this)
+                        .setMessage("⏳ Đang đồng bộ cài đặt…")
+                        .setCancelable(false)
+                        .create();
+        loading.show();
+
+        final boolean[] navigated = {false};
+        final Runnable navigateOnce = () -> {
+            if (navigated[0]) return;
+            navigated[0] = true;
+            navHandler.removeCallbacksAndMessages(null);
+            try { if (loading.isShowing()) loading.dismiss(); } catch (Exception ignore) {}
+            Toast.makeText(OnboardingActivity.this, "🎉 Sẵn sàng học rồi!", Toast.LENGTH_SHORT).show();
+            Intent i = new Intent(OnboardingActivity.this, MainActivity.class);
+            i.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+            startActivity(i);
+            finish();
+        };
+        final Runnable onDone = () -> {
+            if (pending.decrementAndGet() <= 0) {
+                navigateOnce.run();
+            }
+        };
+
         // Push to backend (best-effort).
         LinguaApiService api = ApiClient.getService(this);
         Map<String, Object> profile = new HashMap<>();
@@ -189,9 +224,11 @@ public class OnboardingActivity extends AppCompatActivity {
                             .remove(KEY_PENDING_PROFILE_LEVEL)
                             .apply();
                 }
+                runOnUiThread(onDone);
             }
             @Override public void onFailure(Call<ApiResponse<User>> c, Throwable t) {
                 // UX-5: giu pending de retry lai sau.
+                runOnUiThread(onDone);
             }
         });
 
@@ -207,17 +244,18 @@ public class OnboardingActivity extends AppCompatActivity {
                             .remove(KEY_PENDING_DAILY_GOAL)
                             .apply();
                 }
+                runOnUiThread(onDone);
             }
             @Override public void onFailure(Call<ApiResponse<Object>> c, Throwable t) {
                 // UX-5: giu pending de retry lai sau.
+                runOnUiThread(onDone);
             }
         });
 
-        Toast.makeText(this, "🎉 Sẵn sàng học rồi!", Toast.LENGTH_SHORT).show();
-        Intent i = new Intent(this, MainActivity.class);
-        i.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
-        startActivity(i);
-        finish();
+        // BUG-008 FIX: safety timeout 3s — dù callback chưa về vẫn navigate để user
+        // không bị stuck ở onboarding khi mạng quá chậm. Pending requests sẽ
+        // được retry lần sau qua retryPendingSyncIfNeeded().
+        navHandler.postDelayed(navigateOnce, 3000);
     }
 
     /**

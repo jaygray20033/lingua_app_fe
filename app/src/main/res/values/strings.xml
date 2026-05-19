@@ -54,4 +54,9 @@
     <string name="press_record">Nhấn Ghi âm để bắt đầu…</string>
     <string name="play_audio">▶ Nghe</string>
     <string name="record">🎙 Nói</string>
+    <!-- BUG-027 FIX: di chuyển email support hardcoded ra strings.xml để dễ thay đổi
+         khi domain thay đổi, không phải sửa code Java. -->
+    <string name="support_email">support@lingua.app</string>
+    <string name="forgot_password_title">Quên mật khẩu</string>
+    <string name="forgot_password_message">Vui lòng liên hệ bộ phận hỗ trợ tại %1$s để đặt lại mật khẩu. Tính năng đặt lại tự động sẽ có trong bản cập nhật sắp tới.</string>
 </resources>

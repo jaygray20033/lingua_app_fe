@@ -204,7 +204,12 @@ public class PracticeActivity extends AppCompatActivity implements TextToSpeech.
     private void loadHearts() {
         apiService.getMyStats().enqueue(new Callback<ApiResponse<GamificationStats>>() {
             @Override public void onResponse(Call<ApiResponse<GamificationStats>> c, Response<ApiResponse<GamificationStats>> r) {
-                if (r.isSuccessful() && r.body() != null && r.body().getData() != null) {
+                // BUG-015 FIX: kiểm tra isSuccess() của body — backend có thể trả
+                // 200 OK nhưng {success:false, data:{...}} (loại phản hồi không đáng
+                // tin cậy). Trước đây code lấy data bất chấp success=false → hiển
+                // thị số tim đáng ngờ cho user.
+                if (r.isSuccessful() && r.body() != null && r.body().isSuccess()
+                        && r.body().getData() != null) {
                     currentHearts = r.body().getData().hearts;
                     runOnUiThread(() -> {
                         if (tvHearts != null) tvHearts.setText("❤️ " + currentHearts);
@@ -451,6 +456,21 @@ public class PracticeActivity extends AppCompatActivity implements TextToSpeech.
 
         if (prompt != null && prompt.has("text") && tts != null && ttsReady) {
             String listenText = prompt.get("text").getAsString();
+            // BUG-005 FIX: setLanguage() theo target_language trước khi speak.
+            // Trước đây TTS dùng locale mặc định của thiết bị (thường vi-VN cho
+            // user VN) → đọc text Nhật/Hàn/Trung bằng giọng tiếng Việt → âm
+            // thanh nhảm nhí. AIRoleplayActivity đã set language đúng mạch này
+            // (xem speakAI()) — đồng bộ lại cho Practice.
+            String targetLang = getSharedPreferences("LinguaPrefs", MODE_PRIVATE)
+                    .getString(OnboardingActivity.KEY_TARGET_LANG, "ja");
+            Locale ttsLocale;
+            switch (targetLang) {
+                case "en": ttsLocale = Locale.ENGLISH; break;
+                case "zh": ttsLocale = Locale.CHINESE; break;
+                case "ko": ttsLocale = Locale.KOREAN; break;
+                default:   ttsLocale = Locale.JAPANESE;
+            }
+            try { tts.setLanguage(ttsLocale); } catch (Exception ignore) {}
             tts.speak(listenText, TextToSpeech.QUEUE_FLUSH, null, null);
             // UX-3 FIX: TTS đã tự phát một lần → coi như user đã nghe.
             hasListenedThisExercise = true;
@@ -783,7 +803,11 @@ public class PracticeActivity extends AppCompatActivity implements TextToSpeech.
                         btnSubmit.setVisibility(View.GONE);
                         if (btnSkip != null) btnSkip.setVisibility(View.GONE); // BUG U6
                         btnNext.setVisibility(View.VISIBLE);
-                        tvScore.setText(String.format(Locale.getDefault(), "Score: %d/%d", score, currentIndex + 1));
+                        // BUG-007 FIX: i18n — toàn bộ app dùng tiếng Việt nhưng
+                        // riêng dòng score này lại "Score: x/y". Đổi sang "🎯 Điểm: x/y".
+                        // BUG-028: dùng Locale.US cho số để tránh hiển thị số Ả Rập
+                        // khi user thiết bị locale ar/fa.
+                        tvScore.setText(String.format(Locale.US, "🎯 Điểm: %d/%d", score, currentIndex + 1));
                     });
                 } else {
                     // BUG L5 FIX: si le serveur renvoie 4xx/5xx, l'ancien code
@@ -878,6 +902,12 @@ public class PracticeActivity extends AppCompatActivity implements TextToSpeech.
                 if (r.isSuccessful() && r.body() != null && r.body().getData() != null) {
                     currentHearts = r.body().getData().hearts;
                     runOnUiThread(() -> {
+                        // BUG-014 FIX: nếu user bấm Back giữa lúc request inflight,
+                        // callback vẫn fire sau khi Activity destroyed →
+                        // AlertDialog.Builder(this) trên context destroyed sẽ
+                        // throws WindowManager$BadTokenException. Guard lại trước khi
+                        // chạm view.
+                        if (isFinishing() || isDestroyed()) return;
                         if (tvHearts != null) tvHearts.setText("❤️ " + currentHearts);
                         if (currentHearts <= 0) {
                             // BUG 5 FIX: trước đây chỉ Toast, không block gì → user
@@ -1016,6 +1046,12 @@ public class PracticeActivity extends AppCompatActivity implements TextToSpeech.
     /** BUG 7.1 FIX: helper để release MediaPlayer hiện tại một cách an toàn. */
     private void releaseCurrentMediaPlayer() {
         if (currentMediaPlayer != null) {
+            // BUG-020 FIX: stop() trước khi release() — một số OEM giữ lại
+            // AudioTrack buffer phát thêm 100–200ms sau release() → khi user
+            // vừa thoát màn hình vẫn nghe nhẹ tiếng cuối câu.
+            try {
+                if (currentMediaPlayer.isPlaying()) currentMediaPlayer.stop();
+            } catch (Exception ignore) {}
             try {
                 currentMediaPlayer.release();
             } catch (Exception ignore) {}

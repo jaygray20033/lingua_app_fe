@@ -116,6 +116,17 @@ public class ProfileActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         loadStats();
+        // BUG-023 FIX: reset logout button state khi quay lại ProfileActivity
+        // (vd. logout API fail nhưng activity đã chuyển sang Login rồi user
+        // bấm back → button vẫn hiển "⏳ Đang đăng xuất..." và disabled). Khi
+        // user quay lại thì phải phục hồi trạng thái bình thường.
+        isLoggingOut = false;
+        Button btnLogout = findViewById(R.id.btnLogout);
+        if (btnLogout != null) {
+            btnLogout.setEnabled(true);
+            btnLogout.setAlpha(1.0f);
+            btnLogout.setText("🚪 Đăng xuất");
+        }
     }
 
     private void loadProfile() {
@@ -278,6 +289,13 @@ public class ProfileActivity extends AppCompatActivity {
                     tvDailyGoalValue.setText(xp + " XP");
                     getSharedPreferences(PREFS, MODE_PRIVATE).edit()
                             .putInt("daily_goal_xp", xp).apply();
+                    // BUG-011 FIX: đánh dấu cờ "force_refresh_main" để khi user
+                    // quay về MainActivity, MainActivity.onResume() bypass cooldown
+                    // 30s và gọi lại loadStats() ngay. Trước đây user thay đổi daily
+                    // goal từ Profile rồi back về Home → progress bar vẫn dựa trên
+                    // goal cũ trong cache 30s.
+                    getSharedPreferences("LinguaPrefs", MODE_PRIVATE).edit()
+                            .putBoolean("force_refresh_main", true).apply();
                     Toast.makeText(ProfileActivity.this, "✅ Đã đặt mục tiêu " + xp + " XP/ngày", Toast.LENGTH_SHORT).show();
                 } else {
                     // Save locally as fallback so the home screen still uses it
@@ -285,6 +303,10 @@ public class ProfileActivity extends AppCompatActivity {
                     tvDailyGoalValue.setText(xp + " XP");
                     getSharedPreferences(PREFS, MODE_PRIVATE).edit()
                             .putInt("daily_goal_xp", xp).apply();
+                    // BUG-011 FIX: ngay cả khi backend fail, daily_goal_xp local đã
+                    // được cập nhật → MainActivity nên reload để dùng giá trị fallback mới.
+                    getSharedPreferences("LinguaPrefs", MODE_PRIVATE).edit()
+                            .putBoolean("force_refresh_main", true).apply();
                     Toast.makeText(ProfileActivity.this, "Đã lưu cục bộ", Toast.LENGTH_SHORT).show();
                 }
             }

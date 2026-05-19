@@ -114,7 +114,11 @@ public final class NotificationScheduler {
                 .setAutoCancel(true)
                 .setContentIntent(homeIntent(ctx))
                 .build();
-        nm.notify(2001, n);
+        // BUG-019 FIX: dùng unique ID dựa trên timestamp để nhiều alert
+        // streak (vd: app fire lúc 8:00 và 12:00 cùng ngày) không ghi đè nhau.
+        // Mặt nạ 0xFFFFFFF để giữ giá trị dương (Notification ID là int).
+        int streakId = 2000 + ((int) (System.currentTimeMillis() & 0xFFFFF));
+        nm.notify(streakId, n);
     }
 
     /** One-shot achievement notification. */
@@ -129,7 +133,11 @@ public final class NotificationScheduler {
                 .setAutoCancel(true)
                 .setContentIntent(homeIntent(ctx))
                 .build();
-        nm.notify(3001, n);
+        // BUG-019 FIX: unique ID để user unlock nhiều achievement trong cùng buổi
+        // học đều hiển thị được. Trước đây notify(3001) cố định → ach #2 ghi
+        // đè ach #1.
+        int achId = 3000 + ((int) (System.currentTimeMillis() & 0xFFFFF));
+        nm.notify(achId, n);
     }
 
     private static PendingIntent homeIntent(Context ctx) {

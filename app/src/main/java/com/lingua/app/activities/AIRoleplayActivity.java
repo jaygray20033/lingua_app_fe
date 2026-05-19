@@ -1,6 +1,8 @@
 package com.lingua.app.activities;
 
+import android.Manifest;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.speech.RecognitionListener;
 import android.speech.RecognizerIntent;
@@ -8,7 +10,9 @@ import android.speech.SpeechRecognizer;
 import android.speech.tts.TextToSpeech;
 import android.view.View;
 import android.widget.*;
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import com.lingua.app.R;
@@ -45,6 +49,10 @@ public class AIRoleplayActivity extends AppCompatActivity implements TextToSpeec
     private String selectedScenarioId = null;
     private List<RoleplayScenario> scenarios = new ArrayList<>();
     private boolean isMicActive = false;
+
+    // BUG-001 FIX: Constant for RECORD_AUDIO permission request code so we can
+    // route the result back to startMic() once the user grants the permission.
+    private static final int REQ_RECORD_AUDIO = 102;
 
     // BUG #8 FIX: giữ reference EventSource để có thể cancel trong onDestroy.
     // Nếu user thoát màn hình AI giữa chừng khi đang streaming response, OkHttp
@@ -172,16 +180,42 @@ public class AIRoleplayActivity extends AppCompatActivity implements TextToSpeec
     }
 
     private void loadScenarios() {
+        // BUG-018 FIX: hiển thị progress bar + disable scenario spinner trong khi
+        // network call đang chạy. Trước đây user đổi ngôn ngữ nhưng spinner vẫn
+        // hiển thị scenarios cũ → bấm "Bắt đầu phiên" với scenarioId thuộc ngôn
+        // ngữ khác → backend 400.
+        if (progressBar != null) progressBar.setVisibility(View.VISIBLE);
+        if (spinnerScenario != null) spinnerScenario.setEnabled(false);
+        if (tvStatus != null) tvStatus.setText("⏳ Đang tải kịch bản…");
         apiService.getScenarios(selectedLanguage, null).enqueue(new Callback<ApiResponse<List<RoleplayScenario>>>() {
             @Override
             public void onResponse(Call<ApiResponse<List<RoleplayScenario>>> call, Response<ApiResponse<List<RoleplayScenario>>> response) {
+                if (isFinishing() || isDestroyed()) return;
                 if (response.isSuccessful() && response.body() != null && response.body().isSuccess()) {
                     scenarios.clear();
                     scenarios.addAll(response.body().getData());
-                    runOnUiThread(() -> updateScenarioSpinner());
+                    runOnUiThread(() -> {
+                        if (progressBar != null) progressBar.setVisibility(View.GONE);
+                        if (spinnerScenario != null) spinnerScenario.setEnabled(true);
+                        updateScenarioSpinner();
+                        if (tvStatus != null && sessionId == -1) tvStatus.setText("Chọn kịch bản và bắt đầu phiên");
+                    });
+                } else {
+                    runOnUiThread(() -> {
+                        if (progressBar != null) progressBar.setVisibility(View.GONE);
+                        if (spinnerScenario != null) spinnerScenario.setEnabled(true);
+                        if (tvStatus != null) tvStatus.setText("⚠️ Không tải được kịch bản (mã " + response.code() + ")");
+                    });
                 }
             }
-            @Override public void onFailure(Call<ApiResponse<List<RoleplayScenario>>> call, Throwable t) {}
+            @Override public void onFailure(Call<ApiResponse<List<RoleplayScenario>>> call, Throwable t) {
+                if (isFinishing() || isDestroyed()) return;
+                runOnUiThread(() -> {
+                    if (progressBar != null) progressBar.setVisibility(View.GONE);
+                    if (spinnerScenario != null) spinnerScenario.setEnabled(true);
+                    if (tvStatus != null) tvStatus.setText("⚠️ Lỗi kết nối khi tải kịch bản");
+                });
+            }
         });
     }
 
@@ -214,6 +248,9 @@ public class AIRoleplayActivity extends AppCompatActivity implements TextToSpeec
 
     private void startSession() {
         progressBar.setVisibility(View.VISIBLE);
+        // BUG-013 FIX: disable nút "Bắt đầu phiên" trong khi request đang inflight
+        // để tránh user spam tap → nhiều session được tạo song song.
+        btnStartSession.setEnabled(false);
         Map<String, Object> body = new HashMap<>();
         body.put("language", selectedLanguage);
         body.put("type", "ROLEPLAY");
@@ -222,6 +259,7 @@ public class AIRoleplayActivity extends AppCompatActivity implements TextToSpeec
         apiService.startSession(body).enqueue(new Callback<ApiResponse<AISession>>() {
             @Override
             public void onResponse(Call<ApiResponse<AISession>> call, Response<ApiResponse<AISession>> response) {
+                if (isFinishing() || isDestroyed()) return;
                 progressBar.setVisibility(View.GONE);
                 if (response.isSuccessful() && response.body() != null && response.body().isSuccess()) {
                     sessionId = response.body().getData().sessionId;
@@ -236,20 +274,44 @@ public class AIRoleplayActivity extends AppCompatActivity implements TextToSpeec
                         tvStatus.setText("✅ Đã bắt đầu phiên! Hãy nhắn tin…");
                         addMessage("AI", getWelcomeMessage());
                     });
+                } else {
+                    // BUG-013 FIX: hiển thị thông báo lỗi rõ ràng cho user khi
+                    // backend trả 4xx/5xx (vd 403 cho scenario PREMIUM). Trước đây
+                    // không có else branch → user thấy progress bar biến mất mà
+                    // không hiểu chuyện gì.
+                    final String msg;
+                    if (response.body() != null && response.body().getMessage() != null
+                            && !response.body().getMessage().isEmpty()) {
+                        msg = response.body().getMessage();
+                    } else if (response.code() == 403) {
+                        msg = "Kịch bản này dành cho thành viên Premium";
+                    } else {
+                        msg = "Không bắt đầu được phiên (mã " + response.code() + ")";
+                    }
+                    runOnUiThread(() -> {
+                        tvStatus.setText("⚠️ " + msg);
+                        btnStartSession.setEnabled(true);
+                    });
                 }
             }
             @Override public void onFailure(Call<ApiResponse<AISession>> call, Throwable t) {
-                progressBar.setVisibility(View.GONE);
-                tvStatus.setText("Lỗi: " + t.getMessage());
+                if (isFinishing() || isDestroyed()) return;
+                runOnUiThread(() -> {
+                    progressBar.setVisibility(View.GONE);
+                    btnStartSession.setEnabled(true);
+                    tvStatus.setText("⚠️ Lỗi: " + t.getMessage());
+                });
             }
         });
     }
 
     private String getWelcomeMessage() {
+        // BUG-026 FIX: thống nhất phong cách câu hỏi — tất cả các ngôn ngữ đều
+        // dùng dấu hỏi (?) thay vì lẫn lộn dấu ! / ? giữa các locale.
         switch (selectedLanguage) {
             case "ja": return "こんにちは！今日は何について話しましょうか？😊";
             case "zh": return "你好！今天我们聊什么？😊";
-            case "ko": return "안녕하세요! 오늘 무엇을 이야기할까요? 😊";
+            case "ko": return "안녕하세요? 오늘 무엇을 이야기할까요? 😊";
             default: return "Hello! What would you like to talk about today? 😊";
         }
     }
@@ -394,6 +456,19 @@ public class AIRoleplayActivity extends AppCompatActivity implements TextToSpeec
     }
 
     private void startMic() {
+        // BUG-001 FIX: kiểm tra RECORD_AUDIO permission TRƯỚC khi tạo
+        // SpeechRecognizer. Nếu chưa có quyền, request runtime permission và
+        // return — không setText "🎙 Hãy nói…" để tránh user tưởng đang nghe.
+        // Trên Android 13+ và một số OEM, gọi startListening() mà chưa có quyền
+        // sẽ raise ERROR_INSUFFICIENT_PERMISSIONS im lặng (hoặc SecurityException).
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
+                != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this,
+                    new String[]{Manifest.permission.RECORD_AUDIO}, REQ_RECORD_AUDIO);
+            Toast.makeText(this, "Cần cấp quyền micro để dùng tính năng này",
+                    Toast.LENGTH_SHORT).show();
+            return;
+        }
         if (!SpeechRecognizer.isRecognitionAvailable(this)) {
             // U7 FIX: French → Vietnamese.
             tvStatus.setText("Thiết bị không hỗ trợ nhận dạng giọng nói");
@@ -441,6 +516,23 @@ public class AIRoleplayActivity extends AppCompatActivity implements TextToSpeec
         isMicActive = false;
         if (speechRecognizer != null) speechRecognizer.stopListening();
         tvStatus.setText("Phiên đang hoạt động");
+    }
+
+    // BUG-001 FIX: handle permission result for RECORD_AUDIO. Nếu user grant
+    // thì khởi động lại mic flow ngay; nếu từ chối thì disable btnMic và hiển
+    // thị thông báo giải thích.
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
+                                           @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == REQ_RECORD_AUDIO) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                startMic();
+            } else {
+                if (btnMic != null) btnMic.setEnabled(false);
+                if (tvStatus != null) tvStatus.setText("⚠️ Cần quyền micro để dùng giọng nói");
+            }
+        }
     }
 
     private String getLocaleForLanguage(String lang) {

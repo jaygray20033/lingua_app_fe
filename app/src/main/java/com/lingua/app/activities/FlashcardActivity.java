@@ -65,6 +65,17 @@ public class FlashcardActivity extends AppCompatActivity {
     // (đặc biệt với legacy endpoint).
     private boolean reviewLocked = false;
 
+    // BUG-003 FIX: lưu tất cả các Retrofit Call đang inflight để có thể cancel
+    // trong onDestroy(). Trước đây các request từ submitReview() / loadDueCards()
+    // chạy fire-and-forget → khi user back giữa request, callback vẫn fire và
+    // truy cập progressBar / tvFront / showFinishOptions trên Activity đã destroyed
+    // → leak Activity + crash WindowManager$BadTokenException trên OEM nhạy.
+    private final List<Call<?>> pendingCalls = new ArrayList<>();
+
+    private void trackCall(Call<?> c) {
+        if (c != null) pendingCalls.add(c);
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -110,9 +121,12 @@ public class FlashcardActivity extends AppCompatActivity {
     private void loadDueCards() {
         progressBar.setVisibility(View.VISIBLE);
         Long deckFilter = selectedDeckId > 0 ? selectedDeckId : null;
-        apiService.getSrsDue(deckFilter, 50).enqueue(new Callback<ApiResponse<SrsDueResponse>>() {
+        Call<ApiResponse<SrsDueResponse>> dueCall = apiService.getSrsDue(deckFilter, 50);
+        trackCall(dueCall);
+        dueCall.enqueue(new Callback<ApiResponse<SrsDueResponse>>() {
             @Override
             public void onResponse(Call<ApiResponse<SrsDueResponse>> call, Response<ApiResponse<SrsDueResponse>> response) {
+                if (isFinishing() || isDestroyed()) return;
                 progressBar.setVisibility(View.GONE);
                 if (response.isSuccessful() && response.body() != null && response.body().isSuccess()) {
                     SrsDueResponse data = response.body().getData();
@@ -141,6 +155,7 @@ public class FlashcardActivity extends AppCompatActivity {
             }
             @Override
             public void onFailure(Call<ApiResponse<SrsDueResponse>> call, Throwable t) {
+                if (isFinishing() || isDestroyed() || call.isCanceled()) return;
                 progressBar.setVisibility(View.GONE);
                 // U20 FIX: Snackbar với action "Thử lại" thay vì Toast im lặng.
                 showRetrySnackbar("Lỗi tải dữ liệu: " + t.getMessage(), v -> loadDueCards());
@@ -257,14 +272,20 @@ public class FlashcardActivity extends AppCompatActivity {
             // LF-3: legacy endpoint nhận String map — không có timeMs nguyên, nên
             // ta vẫn đóng gói như chuỗi để backend log nếu cần.
             legacy.put("timeMs", String.valueOf(elapsedMs));
-            apiService.reviewCard(card.cardId > 0 ? card.cardId : card.id, legacy)
-                    .enqueue(new Callback<ApiResponse<ReviewResult>>() {
+            // BUG-003 FIX: track call để có thể cancel trong onDestroy.
+            Call<ApiResponse<ReviewResult>> legacyCall = apiService.reviewCard(
+                    card.cardId > 0 ? card.cardId : card.id, legacy);
+            trackCall(legacyCall);
+            legacyCall.enqueue(new Callback<ApiResponse<ReviewResult>>() {
                         @Override public void onResponse(Call<ApiResponse<ReviewResult>> c, Response<ApiResponse<ReviewResult>> r) {
+                            // BUG-003 FIX: guard để tránh truy cập View khi Activity đã destroyed.
+                            if (isFinishing() || isDestroyed()) return;
                             progressBar.setVisibility(View.GONE);
                             advanceAfterReview(r.isSuccessful() && r.body() != null && r.body().getData() != null
                                     ? r.body().getData().intervalDays : 0, null);
                         }
                         @Override public void onFailure(Call<ApiResponse<ReviewResult>> c, Throwable t) {
+                            if (isFinishing() || isDestroyed() || c.isCanceled()) return;
                             progressBar.setVisibility(View.GONE);
                             advanceAfterReview(0, null);
                         }
@@ -281,9 +302,13 @@ public class FlashcardActivity extends AppCompatActivity {
         // với PracticeActivity (BUG 6) để thuật toán SM-2 tính interval chính xác.
         body.put("timeMs", elapsedMs);
 
-        apiService.submitSrsReview(reviewId, body).enqueue(new Callback<ApiResponse<SrsReviewResult>>() {
+        // BUG-003 FIX: track call.
+        Call<ApiResponse<SrsReviewResult>> srsCall = apiService.submitSrsReview(reviewId, body);
+        trackCall(srsCall);
+        srsCall.enqueue(new Callback<ApiResponse<SrsReviewResult>>() {
             @Override
             public void onResponse(Call<ApiResponse<SrsReviewResult>> call, Response<ApiResponse<SrsReviewResult>> response) {
+                if (isFinishing() || isDestroyed()) return;
                 progressBar.setVisibility(View.GONE);
                 SrsReviewResult result = null;
                 if (response.isSuccessful() && response.body() != null) {
@@ -295,6 +320,7 @@ public class FlashcardActivity extends AppCompatActivity {
             }
             @Override
             public void onFailure(Call<ApiResponse<SrsReviewResult>> call, Throwable t) {
+                if (isFinishing() || isDestroyed() || call.isCanceled()) return;
                 progressBar.setVisibility(View.GONE);
                 advanceAfterReview(0, null);
             }
@@ -327,6 +353,12 @@ public class FlashcardActivity extends AppCompatActivity {
         // BUG B17 FIX: cancel any pending advance callbacks to avoid leaking
         // this Activity and crashing if the user rotates / leaves the screen.
         advanceHandler.removeCallbacksAndMessages(null);
+        // BUG-003 FIX: hủy tất cả Retrofit Call đang chạy để callback không
+        // fire sau khi Activity destroyed (tránh leak + BadTokenException).
+        for (Call<?> c : pendingCalls) {
+            try { c.cancel(); } catch (Exception ignore) {}
+        }
+        pendingCalls.clear();
         super.onDestroy();
     }
 

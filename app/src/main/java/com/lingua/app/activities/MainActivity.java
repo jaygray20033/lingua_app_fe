@@ -167,6 +167,10 @@ public class MainActivity extends AppCompatActivity {
             // Allow claiming straight from the home preview when completed.
             apiService.claimQuest(quest.id).enqueue(new Callback<ApiResponse<Object>>() {
                 @Override public void onResponse(Call<ApiResponse<Object>> c, Response<ApiResponse<Object>> r) {
+                    // BUG-022 FIX: tránh BadTokenException khi user đóng MainActivity
+                    // trước khi callback về (Toast/loadDailyQuests vẫn chạy trên
+                    // context đã destroyed).
+                    if (isFinishing() || isDestroyed()) return;
                     if (r.isSuccessful() && r.body() != null && r.body().isSuccess()) {
                         Toast.makeText(MainActivity.this, "🎉 +" + quest.rewardGems + " 💎", Toast.LENGTH_SHORT).show();
                         loadDailyQuests();
@@ -179,6 +183,7 @@ public class MainActivity extends AppCompatActivity {
                     }
                 }
                 @Override public void onFailure(Call<ApiResponse<Object>> c, Throwable t) {
+                    if (isFinishing() || isDestroyed()) return;
                     // BUG #12 FIX: thông báo network error cho user.
                     Toast.makeText(MainActivity.this,
                             "Lỗi kết nối: " + t.getMessage(), Toast.LENGTH_SHORT).show();
@@ -265,6 +270,21 @@ public class MainActivity extends AppCompatActivity {
         startActivity(i);
     }
 
+    /**
+     * BUG-002 FIX: MainActivity có launchMode="singleTop" trong manifest, nên
+     * khi LessonResultActivity gọi startActivity(MainActivity) với
+     * FLAG_ACTIVITY_CLEAR_TOP | FLAG_ACTIVITY_SINGLE_TOP + putExtra("forceRefresh", true),
+     * Android KHÔNG tạo lại Activity mà gọi onNewIntent(intent) rồi onResume().
+     * Nếu không gọi setIntent(intent), getIntent() vẫn trả về intent cũ (không có
+     * extra "forceRefresh") → onResume() vẫn bị cooldown 30s chặn → XP/streak
+     * không cập nhật ngay sau khi user hoàn thành lesson.
+     */
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+    }
+
     @Override
     protected void onResume() {
         super.onResume();
@@ -290,6 +310,16 @@ public class MainActivity extends AppCompatActivity {
         if (force) {
             getIntent().removeExtra("forceRefresh");
             lastRefreshMs = 0; // reset cooldown
+        }
+
+        // BUG-011 FIX: ProfileActivity đặt cờ "force_refresh_main" sau khi update
+        // daily goal thành công. Khi user back về Home, ta detect cờ này và
+        // bypass cooldown 30s để tiến độ daily goal hiển thị đúng ngay lập tức
+        // thay vì phải đợi nửa phút hoặc vào màn hình khác rồi quay lại.
+        SharedPreferences p = getSharedPreferences("LinguaPrefs", MODE_PRIVATE);
+        if (p.getBoolean("force_refresh_main", false)) {
+            p.edit().remove("force_refresh_main").apply();
+            lastRefreshMs = 0;
         }
 
         long now = System.currentTimeMillis();

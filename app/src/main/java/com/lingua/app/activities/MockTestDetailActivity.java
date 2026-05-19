@@ -149,8 +149,25 @@ public class MockTestDetailActivity extends AppCompatActivity {
         if (startedAtMs == 0) {
             startedAtMs = System.currentTimeMillis();
         }
-        durationMs = detail.durationMin > 0 ? detail.durationMin * 60_000L : 0;
-        if (durationMs > 0) timerHandler.post(timerTick);
+        // BUG-012 FIX: ưu tiên dùng durationMs restored từ onRestoreInstanceState
+        // (nếu có) thay vì phụ thuộc vào detail.durationMin từ API. Trước đây
+        // nếu loadDetail() fail sau khi Activity được kill-and-restore, startedAtMs
+        // đã restore (>0) nhưng durationMs = 0 → timer không bao giờ countdown →
+        // user có thể làm bài quá thời gian gốc.
+        if (durationMs <= 0) {
+            durationMs = detail.durationMin > 0 ? detail.durationMin * 60_000L : 0;
+        }
+        // BUG-012 FIX: nếu đã hết thời gian khi process restore (remaining < 0)
+        // → auto-submit ngay thay vì để user tiếp tục làm bài quá thời hạn.
+        if (durationMs > 0) {
+            long remaining = durationMs - (System.currentTimeMillis() - startedAtMs);
+            if (remaining <= 0) {
+                Toast.makeText(this, "⏰ Hết giờ! Đang nộp bài...", Toast.LENGTH_LONG).show();
+                submit();
+                return;
+            }
+            timerHandler.post(timerTick);
+        }
         else tvTimer.setVisibility(View.GONE);
         // BUG #R3-M2 FIX: khôi phục câu hỏi đang xem dở thay vì luôn hiển thị câu 0.
         int idxToShow = (currentIndex >= 0 && currentIndex < questions.size())
@@ -435,6 +452,10 @@ public class MockTestDetailActivity extends AppCompatActivity {
         outState.putStringArrayList("answers_values", values);
         outState.putInt("current_index", currentIndex);
         outState.putLong("started_at", startedAtMs);
+        // BUG-012 FIX: lưu durationMs luôn — nếu sau khi process restore mà
+        // getMockTestDetail() fail, ta vẫn còn durationMs để tiếp tục countdown
+        // hoặc auto-submit khi hết giờ.
+        outState.putLong("duration_ms", durationMs);
     }
 
     @SuppressWarnings("unchecked")
@@ -454,6 +475,10 @@ public class MockTestDetailActivity extends AppCompatActivity {
             int idx = savedInstanceState.getInt("current_index", 0);
             long started = savedInstanceState.getLong("started_at", 0L);
             if (started > 0) startedAtMs = started;
+            // BUG-012 FIX: restore durationMs để timer tiếp tục chính xác kể cả
+            // khi loadDetail() chưa về / fail.
+            long dur = savedInstanceState.getLong("duration_ms", 0L);
+            if (dur > 0) durationMs = dur;
             // Re-render currentIndex once loadDetail finishes (loadDetail()
             // will call startTest() which calls showQuestion(0) by default).
             // We override the index here so when loadDetail returns,

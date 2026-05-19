@@ -35,6 +35,20 @@ public class TokenAuthenticator implements Authenticator {
     // token mới → mỗi request lại trigger authenticate). Singleton + lazy init.
     private static volatile OkHttpClient sRefreshClient;
 
+    // BUG-009 FIX: lock static dùng chung giữa MọI instance của TokenAuthenticator.
+    // Trước đây `synchronized` trên instance method chỉ lock trên `this` — nếu
+    // sau này có ai tạo Retrofit thứ hai (vd. upload client / SSE client) thì
+    // sẽ có 2 instance và 2 refresh request song song khi cả hai OkHttpClient
+    // cùng gặp 401 → race condition: cả hai gọi /auth/refresh, refresh token
+    // bị invalidate sau request đầu, request thứ hai fail → force logout sai.
+    private static final Object REFRESH_LOCK = new Object();
+
+    // BUG-009 FIX: từng refresh gần đây? Nếu trong cửa sổ 5s vừa refresh xong,
+    // các request 401 đang queue khác (đã dùng access token cũ) không cần gọi
+    // /auth/refresh nữa — chỉ cần thay header bằng access token mới từ session.
+    private static volatile long lastRefreshAtMs = 0;
+    private static final long REFRESH_WINDOW_MS = 5000;
+
     private static OkHttpClient getRefreshClient() {
         if (sRefreshClient == null) {
             synchronized (TokenAuthenticator.class) {
@@ -55,16 +69,40 @@ public class TokenAuthenticator implements Authenticator {
     }
 
     @Override
-    public synchronized Request authenticate(Route route, Response response) throws IOException {
+    public Request authenticate(Route route, Response response) throws IOException {
+        // BUG-009 FIX: lock tĩnh để bảo vệ refresh xuyên-instance.
+        synchronized (REFRESH_LOCK) {
         if (responseCount(response) >= 3) {
+            // BUG-025 FIX: log rõ nguyên nhân forced logout để dễ debug khi user
+            // complain "app tự đăng xuất".
+            Log.w(TAG, "Refresh giving up after " + responseCount(response)
+                    + " attempts → redirectToLogin");
             redirectToLogin();
             return null;
         }
 
         String refreshToken = session.getRefreshToken();
         if (refreshToken == null) {
+            // BUG-025 FIX: log bổ sung.
+            Log.w(TAG, "refreshToken == null → redirectToLogin");
             redirectToLogin();
             return null;
+        }
+
+        // BUG-009 FIX: nếu vừa refresh xong trong REFRESH_WINDOW_MS, kiểm tra xem
+        // access token trong session có mới hơn token đã dùng trong request 401 hay
+        // không. Nếu mới hơn → thay header và retry, không cần gọi refresh nữa.
+        if (System.currentTimeMillis() - lastRefreshAtMs < REFRESH_WINDOW_MS) {
+            String fresh = session.getAccessToken();
+            String reqAuth = response.request().header("Authorization");
+            String reqToken = (reqAuth != null && reqAuth.startsWith("Bearer "))
+                    ? reqAuth.substring(7) : null;
+            if (fresh != null && !fresh.isEmpty() && !fresh.equals(reqToken)) {
+                Log.d(TAG, "Reusing recently refreshed token (skip /auth/refresh)");
+                return response.request().newBuilder()
+                        .header("Authorization", "Bearer " + fresh)
+                        .build();
+            }
         }
 
         // Call refresh endpoint synchronously
@@ -106,6 +144,9 @@ public class TokenAuthenticator implements Authenticator {
                     if (tokenResp != null && tokenResp.isSuccess() && tokenResp.getData() != null) {
                         TokenData data = tokenResp.getData();
                         session.updateTokens(data.accessToken, data.refreshToken);
+                        // BUG-009 FIX: mở cửa sổ 5s để các request 401 đang queue khác
+                        // dùng trực tiếp access token mới thay vì tất cả cùng gọi /auth/refresh.
+                        lastRefreshAtMs = System.currentTimeMillis();
                         Log.d(TAG, "Token refreshed successfully");
 
                         return response.request().newBuilder()
@@ -118,8 +159,11 @@ public class TokenAuthenticator implements Authenticator {
             Log.e(TAG, "Token refresh failed", e);
         }
 
+        // BUG-025 FIX: log rõ ràng trước khi force logout.
+        Log.w(TAG, "Token refresh exhausted → redirectToLogin");
         redirectToLogin();
         return null;
+        } // end synchronized
     }
 
     private void redirectToLogin() {

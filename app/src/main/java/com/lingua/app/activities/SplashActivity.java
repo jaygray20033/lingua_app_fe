@@ -13,6 +13,10 @@ import com.lingua.app.R;
 import com.lingua.app.utils.NotificationScheduler;
 import com.lingua.app.utils.SessionManager;
 
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+
 /**
  * Splash screen / app entry point.
  *
@@ -25,6 +29,14 @@ import com.lingua.app.utils.SessionManager;
  *   3. (Re)schedule the daily reminder if the user wants it.
  */
 public class SplashActivity extends AppCompatActivity {
+
+    // BUG-004 FIX: thay vì dùng `new Thread(...)` thô (anti-pattern: không thể
+    // shutdown, giữ Runnable reference → khó GC, có thể NPE nếu ai đó đổi
+    // sang getContext() activity-scoped), ta dùng ExecutorService có thể shutdown
+    // được trong onDestroy() khi user swipe-kill app giữa 800ms splash delay.
+    private ExecutorService bgExec;
+    private final Handler routeHandler = new Handler(Looper.getMainLooper());
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         // Apply dark-mode setting BEFORE inflating any view.
@@ -47,7 +59,14 @@ public class SplashActivity extends AppCompatActivity {
         final boolean reminderEnabled = prefs.getBoolean(SettingsActivity.KEY_DAILY_REMINDER, true);
         final int reminderHour = prefs.getInt(SettingsActivity.KEY_REMINDER_HOUR, 20);
         final int reminderMin  = prefs.getInt(SettingsActivity.KEY_REMINDER_MIN, 0);
-        new Thread(() -> {
+        // BUG-004 FIX: dùng ExecutorService thay vì `new Thread()` để có thể
+        // shutdownNow() trong onDestroy() khi user swipe-kill app < 800ms.
+        bgExec = Executors.newSingleThreadExecutor(r -> {
+            Thread t = new Thread(r, "notif-scheduler-init");
+            t.setDaemon(true);
+            return t;
+        });
+        bgExec.execute(() -> {
             try {
                 NotificationScheduler.ensureChannels(getApplicationContext());
                 if (reminderEnabled) {
@@ -57,11 +76,26 @@ public class SplashActivity extends AppCompatActivity {
             } catch (Throwable ignore) {
                 // Defensive: nếu WorkManager init fail, đừng crash splash.
             }
-        }, "notif-scheduler-init").start();
+        });
 
         // BUG #17 FIX: giảm delay từ 1500ms xuống 800ms. Trên thiết bị nhanh,
         // 1.5 giây là quá dư thừa và làm user cảm thấy app khởi động chậm.
-        new Handler(Looper.getMainLooper()).postDelayed(this::route, 800);
+        routeHandler.postDelayed(this::route, 800);
+    }
+
+    @Override
+    protected void onDestroy() {
+        // BUG-004 FIX: huỷ các callback và background task đang chạy khi user
+        // swipe-kill app trước 800ms để tránh leak Runnable reference.
+        routeHandler.removeCallbacksAndMessages(null);
+        if (bgExec != null) {
+            try {
+                bgExec.shutdownNow();
+                bgExec.awaitTermination(200, TimeUnit.MILLISECONDS);
+            } catch (Exception ignore) {}
+            bgExec = null;
+        }
+        super.onDestroy();
     }
 
     private void route() {

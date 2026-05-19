@@ -65,7 +65,11 @@ public class SettingsActivity extends AppCompatActivity {
     public static final String KEY_OFFLINE = "offline_cache";
 
     // UX-8 FIX: lưu scroll position tạm khi recreate() vì toggle Dark Mode.
+    // BUG-017 FIX: phối hợp với onSaveInstanceState() để scroll restore vẫn hoạt
+    // động khi user kill process giữa recreate (trước đây static field bị mất
+    // khi process death → user mất scroll position).
     private static int sPendingScrollY = -1;
+    private static final String STATE_SCROLL_Y = "settings_scroll_y";
 
     // LF-5 FIX: cache danh sách ngôn ngữ lấy được từ backend
     // (/api/gamification/languages). Fallback về 4 ngôn ngữ mặc định nếu
@@ -105,6 +109,10 @@ public class SettingsActivity extends AppCompatActivity {
 
         if (getSupportActionBar() != null) getSupportActionBar().setTitle("⚙️ Cài đặt");
 
+        // BUG-006 FIX: setup listeners SAU khi setChecked() trong loadCurrentValues()
+        // để tránh fire callback ngay khi load (không còn ghi đè prefs với giá trị
+        // default không mong muốn). Trong loadCurrentValues() ta sẽ null-out
+        // listener trước khi setChecked, rồi setupListeners() sẽ gắn lại.
         loadCurrentValues();
         setupListeners();
         applyDynamicVersion();
@@ -112,13 +120,38 @@ public class SettingsActivity extends AppCompatActivity {
         // user mở dialog đổi ngôn ngữ đã có danh sách mới nhất.
         loadAvailableLanguages();
 
-        // UX-8 FIX: khôi phục scroll position sau khi recreate() vì toggle Dark Mode.
+        // UX-8 FIX + BUG-016/017 FIX: khôi phục scroll position sau khi recreate()
+        // vì toggle Dark Mode. Ưu tiên lấy từ savedInstanceState (sống qua process
+        // death) trước; nếu không có mới fallback sang static field.
+        // Dùng OnGlobalLayoutListener thay vì post() để chờ layout xong hẳn trên
+        // Android 14+ edge-to-edge (WindowInsets có thể đổi layout sau khi
+        // post()) → tránh hiện tượng nhảy lên đầu vài ms rồi scroll xuống.
         final ScrollView sv = findViewById(R.id.scrollSettings);
-        if (sv != null && sPendingScrollY >= 0) {
-            final int y = sPendingScrollY;
-            sPendingScrollY = -1;
-            sv.post(() -> sv.scrollTo(0, y));
+        int pendingY = -1;
+        if (savedInstanceState != null) {
+            pendingY = savedInstanceState.getInt(STATE_SCROLL_Y, -1);
         }
+        if (pendingY < 0) pendingY = sPendingScrollY;
+        sPendingScrollY = -1;
+        if (sv != null && pendingY >= 0) {
+            final int targetY = pendingY;
+            sv.getViewTreeObserver().addOnGlobalLayoutListener(
+                new android.view.ViewTreeObserver.OnGlobalLayoutListener() {
+                    @Override
+                    public void onGlobalLayout() {
+                        sv.getViewTreeObserver().removeOnGlobalLayoutListener(this);
+                        sv.scrollTo(0, targetY);
+                    }
+                });
+        }
+    }
+
+    @Override
+    protected void onSaveInstanceState(@NonNull Bundle outState) {
+        super.onSaveInstanceState(outState);
+        // BUG-017 FIX: lưu scroll position vào Bundle để sống qua process death.
+        ScrollView sv = findViewById(R.id.scrollSettings);
+        if (sv != null) outState.putInt(STATE_SCROLL_Y, sv.getScrollY());
     }
 
     /**
@@ -138,6 +171,21 @@ public class SettingsActivity extends AppCompatActivity {
     }
 
     private void loadCurrentValues() {
+        // BUG-006 FIX: tạm thời gỡ listener trước khi setChecked() để callback
+        // không bị fire ép ngay khi load. Nếu user chưa tương tác, switch có thể
+        // đang ở trạng thái unchecked (theo XML) mà default prefs lại true → setChecked(true)
+        // sẽ fire onCheckedChange và ghi giá trị (đúng nhưng không cần thiết); nếu sau
+        // này có logic phức tạp hơn trong listener (vd applyReminderSchedule cho
+        // switchDailyReminder) thì sẽ chạy side-effect không mong muốn.
+        switchDarkMode.setOnCheckedChangeListener(null);
+        switchSound.setOnCheckedChangeListener(null);
+        switchHaptic.setOnCheckedChangeListener(null);
+        switchDailyReminder.setOnCheckedChangeListener(null);
+        switchStreakAlert.setOnCheckedChangeListener(null);
+        switchAchievements.setOnCheckedChangeListener(null);
+        switchAutoplay.setOnCheckedChangeListener(null);
+        switchOffline.setOnCheckedChangeListener(null);
+
         switchDarkMode.setChecked(prefs.getBoolean(KEY_DARK_MODE, false));
         switchSound.setChecked(prefs.getBoolean(KEY_SOUND, true));
         switchHaptic.setChecked(prefs.getBoolean(KEY_HAPTIC, true));
