@@ -301,17 +301,42 @@ public class SettingsActivity extends AppCompatActivity {
                     LinguaApiService api = ApiClient.getService(getApplicationContext());
                     Map<String, Object> body = new HashMap<>();
                     body.put("dailyXpGoal", xp);
+                    // R4-H5 FIX: queue pending sync NGAY khi user chọn goal —
+                    // nếu user toggle Dark Mode trước khi API callback về, Activity
+                    // sẽ recreate(), nhưng pending value vẫn còn trong prefs và
+                    // được retry sau (qua OnboardingActivity.retryPendingSyncIfNeeded
+                    // được gọi từ MainActivity). Ngoài ra check isFinishing()
+                    // trước khi Toast để tránh BadTokenException.
+                    // R4-M5: gắn timestamp để retry không ghi đè dữ liệu mới hơn.
+                    final long goalTs = System.currentTimeMillis();
+                    prefs.edit()
+                            .putInt(OnboardingActivity.KEY_PENDING_DAILY_GOAL, xp)
+                            .putLong(OnboardingActivity.KEY_PENDING_DAILY_GOAL_TS, goalTs)
+                            .apply();
+
                     api.setDailyGoal(body).enqueue(new Callback<ApiResponse<Object>>() {
                         @Override
                         public void onResponse(@NonNull Call<ApiResponse<Object>> call,
                                                @NonNull Response<ApiResponse<Object>> response) {
-                            if (response.isSuccessful()) {
+                            // R4-H5: nếu Activity đã destroyed (vd recreate sau Dark
+                            // Mode toggle) thì KHÔNG Toast — chỉ clear pending nếu OK.
+                            boolean ok = response.isSuccessful()
+                                    && response.body() != null && response.body().isSuccess();
+                            if (ok) {
+                                prefs.edit()
+                                        .remove(OnboardingActivity.KEY_PENDING_DAILY_GOAL)
+                                        .remove(OnboardingActivity.KEY_PENDING_DAILY_GOAL_TS)
+                                        .putLong(OnboardingActivity.KEY_BACKEND_DAILY_GOAL_TS, goalTs)
+                                        .apply();
+                            }
+                            if (isFinishing() || isDestroyed()) return;
+                            if (ok) {
                                 Toast.makeText(SettingsActivity.this,
                                         "✅ Đã cập nhật mục tiêu",
                                         Toast.LENGTH_SHORT).show();
                             } else {
                                 Toast.makeText(SettingsActivity.this,
-                                        "⚠️ Không đồng bộ được mục tiêu lên máy chủ",
+                                        "⚠️ Không đồng bộ được mục tiêu — sẽ thử lại sau",
                                         Toast.LENGTH_SHORT).show();
                             }
                         }
@@ -319,6 +344,8 @@ public class SettingsActivity extends AppCompatActivity {
                         @Override
                         public void onFailure(@NonNull Call<ApiResponse<Object>> call,
                                               @NonNull Throwable t) {
+                            // R4-H5: giữ pending để retry. Chỉ Toast nếu Activity còn.
+                            if (isFinishing() || isDestroyed()) return;
                             Toast.makeText(SettingsActivity.this,
                                     "⚠️ Mất kết nối — mục tiêu sẽ đồng bộ lại sau",
                                     Toast.LENGTH_SHORT).show();
@@ -390,7 +417,14 @@ public class SettingsActivity extends AppCompatActivity {
                 .setTitle("🌍 Ngôn ngữ đang học")
                 .setItems(labels, (d, w) -> {
                     final String newCode = codes[w];
-                    prefs.edit().putString(OnboardingActivity.KEY_TARGET_LANG, newCode).apply();
+                    // R4-M5 FIX: gắn timestamp + queue pending để nếu mất mạng,
+                    // retry không ghi đè data mới hơn.
+                    final long langTs = System.currentTimeMillis();
+                    prefs.edit()
+                            .putString(OnboardingActivity.KEY_TARGET_LANG, newCode)
+                            .putString(OnboardingActivity.KEY_PENDING_PROFILE_LANG, newCode)
+                            .putLong(OnboardingActivity.KEY_PENDING_PROFILE_TS, langTs)
+                            .apply();
                     tvLanguage.setText(labels[w]);
 
                     // LF-4 FIX: sync ngôn ngữ lên backend để recommendation engine
@@ -405,7 +439,18 @@ public class SettingsActivity extends AppCompatActivity {
                         @Override
                         public void onResponse(@NonNull Call<com.lingua.app.models.ApiResponse<com.lingua.app.models.User>> c,
                                                @NonNull Response<com.lingua.app.models.ApiResponse<com.lingua.app.models.User>> r) {
-                            if (r.isSuccessful() && r.body() != null && r.body().isSuccess()) {
+                            boolean ok = r.isSuccessful() && r.body() != null && r.body().isSuccess();
+                            if (ok) {
+                                // R4-M5: clear pending + ghi backend ts.
+                                prefs.edit()
+                                        .remove(OnboardingActivity.KEY_PENDING_PROFILE_LANG)
+                                        .remove(OnboardingActivity.KEY_PENDING_PROFILE_TS)
+                                        .putLong(OnboardingActivity.KEY_BACKEND_PROFILE_TS, langTs)
+                                        .apply();
+                            }
+                            // R4-H5: check isFinishing trước khi Toast.
+                            if (isFinishing() || isDestroyed()) return;
+                            if (ok) {
                                 Toast.makeText(SettingsActivity.this,
                                         "✅ Đã đổi ngôn ngữ đang học",
                                         Toast.LENGTH_SHORT).show();
@@ -418,6 +463,7 @@ public class SettingsActivity extends AppCompatActivity {
                         @Override
                         public void onFailure(@NonNull Call<com.lingua.app.models.ApiResponse<com.lingua.app.models.User>> c,
                                               @NonNull Throwable t) {
+                            if (isFinishing() || isDestroyed()) return;
                             Toast.makeText(SettingsActivity.this,
                                     "⚠️ Mất kết nối — ngôn ngữ sẽ đồng bộ sau",
                                     Toast.LENGTH_SHORT).show();

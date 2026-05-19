@@ -123,6 +123,12 @@ public class LoginActivity extends AppCompatActivity {
                     String displayName = data.user != null ? data.user.displayName : "";
                     String userEmail = data.user != null ? data.user.email : email;
                     session.saveSession(data.userId, data.accessToken, data.refreshToken, displayName, userEmail);
+                    // R4-M4 FIX: invalidate Retrofit instance để OkHttp connection
+                    // pool không cache TLS session / token cũ. Trước đây nếu user
+                    // logout không hoàn toàn (app bị kill) rồi login lại với account
+                    // khác, vài request đầu vẫn có thể dùng access token cũ → token
+                    // authenticator trigger refresh với OLD refresh_token → fail.
+                    ApiClient.invalidate();
                     goToMain();
                 } else {
                     String msg = resp.body() != null ? resp.body().getMessage() : "Đăng nhập thất bại";

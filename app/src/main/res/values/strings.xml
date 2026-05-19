@@ -59,4 +59,19 @@
     <string name="support_email">support@lingua.app</string>
     <string name="forgot_password_title">Quên mật khẩu</string>
     <string name="forgot_password_message">Vui lòng liên hệ bộ phận hỗ trợ tại %1$s để đặt lại mật khẩu. Tính năng đặt lại tự động sẽ có trong bản cập nhật sắp tới.</string>
+
+    <!-- R4-L2 FIX (TD-1 follow-up): tách label ngôn ngữ vào strings.xml để
+         dễ localize. VocabularyActivity / AIRoleplayActivity / SettingsActivity
+         có thể đọc qua getString() thay vì hardcode "🇯🇵 Nhật" / "🇬🇧 Anh" trong .java.
+         Bước refactor đầy đủ (thay tất cả hardcoded string trong .java) sẽ
+         thực hiện ở round sau — đây là nền tảng. -->
+    <string name="lang_ja">🇯🇵 Tiếng Nhật</string>
+    <string name="lang_en">🇬🇧 Tiếng Anh</string>
+    <string name="lang_zh">🇨🇳 Tiếng Trung</string>
+    <string name="lang_ko">🇰🇷 Tiếng Hàn</string>
+    <string name="lang_ja_short">🇯🇵 Nhật</string>
+    <string name="lang_en_short">🇬🇧 Anh</string>
+    <string name="lang_zh_short">🇨🇳 Trung</string>
+    <string name="lang_ko_short">🇰🇷 Hàn</string>
+    <string name="retry">Thử lại</string>
 </resources>

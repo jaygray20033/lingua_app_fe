@@ -85,8 +85,12 @@ public interface LinguaApiService {
     @POST("flashcards/decks/{deckId}/cards")
     Call<ApiResponse<Map<String, Object>>> addCard(@Path("deckId") long deckId, @Body Map<String, String> body);
 
+    // R4-H4 FIX: đổi @Body Map<String, String> → Map<String, Object> để timeMs
+    // được serialize dạng Number (đồng bộ với SRS endpoint submitSrsReview).
+    // Trước đây legacy gửi "5000" (String) trong khi SRS gửi 5000 (Number) →
+    // backend có thể reject sau khi strict validation update / express-validator.
     @POST("flashcards/cards/{cardId}/review")
-    Call<ApiResponse<ReviewResult>> reviewCard(@Path("cardId") long cardId, @Body Map<String, String> body);
+    Call<ApiResponse<ReviewResult>> reviewCard(@Path("cardId") long cardId, @Body Map<String, Object> body);
 
     // 1.6 — Deck management (nouvelle API /my-decks)
     @GET("my-decks")

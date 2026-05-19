@@ -305,24 +305,36 @@ public class MainActivity extends AppCompatActivity {
         // (ví dụ sau khi user hoàn thành lesson và quay về Home từ LessonResultActivity),
         // ta bypass cooldown để XP/streak/quest progress hiện ra ngay lập tức,
         // tránh trải nghiệm "đã học xong nhưng XP không tăng".
+        //
+        // R4-M7 FIX: chỉ honor force-refresh nếu đã qua min-interval (5s) kể
+        // từ lần refresh gần nhất. Trước đây mỗi Activity B set force_refresh_main
+        // rồi finish → 4 API calls; user spam có thể tạo 40+ calls/phút → rate
+        // limit. Giờ có force flag cũng phải đợi 5s.
+        long now = System.currentTimeMillis();
+        long sinceLast = now - lastRefreshMs;
+        boolean canHonorForce = sinceLast > 5000L; // R4-M7: min 5s giữa 2 lần force
         boolean force = getIntent() != null
                 && getIntent().getBooleanExtra("forceRefresh", false);
-        if (force) {
+        if (force && canHonorForce) {
             getIntent().removeExtra("forceRefresh");
             lastRefreshMs = 0; // reset cooldown
+        } else if (force) {
+            // Force flag có nhưng vừa refresh xong → bỏ flag, không refresh nữa.
+            getIntent().removeExtra("forceRefresh");
         }
 
         // BUG-011 FIX: ProfileActivity đặt cờ "force_refresh_main" sau khi update
         // daily goal thành công. Khi user back về Home, ta detect cờ này và
-        // bypass cooldown 30s để tiến độ daily goal hiển thị đúng ngay lập tức
-        // thay vì phải đợi nửa phút hoặc vào màn hình khác rồi quay lại.
+        // bypass cooldown 30s để tiến độ daily goal hiển thị đúng ngay lập tức.
+        // R4-M7 FIX: cùng áp dụng min-interval 5s.
         SharedPreferences p = getSharedPreferences("LinguaPrefs", MODE_PRIVATE);
         if (p.getBoolean("force_refresh_main", false)) {
             p.edit().remove("force_refresh_main").apply();
-            lastRefreshMs = 0;
+            if (canHonorForce) {
+                lastRefreshMs = 0;
+            }
         }
 
-        long now = System.currentTimeMillis();
         if (now - lastRefreshMs < REFRESH_COOLDOWN_MS) {
             return;
         }
@@ -376,25 +388,73 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    /**
+     * R4-H3 FIX: robust lessonId extraction từ review queue item.
+     *  - Hỗ trợ kiểu Number, String, và nested object {value: N} / {id: N}
+     *  - Fallback sang field "lessonId" nếu "id" không hợp lệ
+     *  - Log chi tiết khi parse fail để dev dễ debug (không Crashlytics trong
+     *    sandbox, dùng Log.e tạm)
+     *  - User-visible message có gợi ý thay vì chỉ "Lỗi: không lấy được lessonId".
+     */
     private void openFirstReviewLesson() {
         if (reviewQueueCache.isEmpty()) {
             Toast.makeText(this, "Không có bài học nào cần ôn lúc này 🎉", Toast.LENGTH_SHORT).show();
             return;
         }
         Map<String, Object> first = reviewQueueCache.get(0);
-        Object idObj = first.get("id");
-        long lessonId = 0;
-        if (idObj instanceof Number) lessonId = ((Number) idObj).longValue();
-        else if (idObj != null) {
-            try { lessonId = Long.parseLong(idObj.toString()); } catch (Exception ignore) {}
-        }
+        long lessonId = extractLessonId(first);
         if (lessonId <= 0) {
-            Toast.makeText(this, "Lỗi: không lấy được lessonId", Toast.LENGTH_SHORT).show();
+            android.util.Log.e("MainActivity",
+                    "openFirstReviewLesson: failed to parse lessonId from item=" + first);
+            Toast.makeText(this,
+                    "Không xác định được bài học — vui lòng kéo xuống để tải lại",
+                    Toast.LENGTH_LONG).show();
             return;
         }
         Intent i = new Intent(this, PracticeActivity.class);
         i.putExtra("lessonId", lessonId);
         startActivity(i);
+    }
+
+    /**
+     * R4-H3 FIX: defensive lessonId parser. Thử nhiều key và nhiều kiểu
+     * dữ liệu khác nhau để không silent-fail khi backend thay đổi format.
+     */
+    private long extractLessonId(Map<String, Object> item) {
+        if (item == null) return 0L;
+        // Thứ tự ưu tiên key: lessonId > id
+        String[] keys = { "lessonId", "lesson_id", "id" };
+        for (String key : keys) {
+            Object v = item.get(key);
+            long parsed = parseLongFlexible(v);
+            if (parsed > 0) return parsed;
+        }
+        return 0L;
+    }
+
+    @SuppressWarnings("unchecked")
+    private long parseLongFlexible(Object v) {
+        if (v == null) return 0L;
+        if (v instanceof Number) return ((Number) v).longValue();
+        if (v instanceof String) {
+            try { return Long.parseLong(((String) v).trim()); } catch (Exception ignore) {}
+            return 0L;
+        }
+        if (v instanceof Map) {
+            // Nested object: thử lấy với key phổ biến.
+            try {
+                Map<String, Object> m = (Map<String, Object>) v;
+                String[] subKeys = { "value", "id", "lessonId" };
+                for (String sk : subKeys) {
+                    long parsed = parseLongFlexible(m.get(sk));
+                    if (parsed > 0) return parsed;
+                }
+            } catch (Exception ignore) {}
+            return 0L;
+        }
+        // Fallback: chức đã từng work — try toString().
+        try { return Long.parseLong(v.toString().trim()); } catch (Exception ignore) {}
+        return 0L;
     }
 
     private void loadStats() { loadStats(null); }
@@ -473,8 +533,10 @@ public class MainActivity extends AppCompatActivity {
         android.view.View root = findViewById(android.R.id.content);
         if (root == null) return;
         try {
+            // R4-L6 FIX: text "Thu lai" thiếu dấu (do mojibake khi save file)
+            // → sửa lại "Thử lại". Logn long-term nên move vào strings.xml.
             Snackbar.make(root, message, Snackbar.LENGTH_INDEFINITE)
-                    .setAction("Thu lai", onRetry)
+                    .setAction("Thử lại", onRetry)
                     .show();
         } catch (Throwable t) {
             // Fallback Toast neu Snackbar khong khoi tao duoc (theme khong tuong thich,...)

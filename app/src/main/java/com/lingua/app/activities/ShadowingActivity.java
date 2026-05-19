@@ -93,16 +93,73 @@ public class ShadowingActivity extends AppCompatActivity implements TextToSpeech
 
         btnNextContent = findViewById(R.id.btnNextContent);
         btnPrev = findViewById(R.id.btnPrev);
+        // R4-M8 FIX: nếu đang record mà user bấm Next/Prev → confirm dialog để
+        // tránh trường hợp transcribe của câu CŨ bị compare với câu MỚI → score sai.
         if (btnNextContent != null) btnNextContent.setOnClickListener(v -> {
             if (contents.isEmpty()) return;
-            currentContentIndex = (currentContentIndex + 1) % contents.size();
-            showContent(currentContentIndex);
+            confirmIfRecording(() -> {
+                currentContentIndex = (currentContentIndex + 1) % contents.size();
+                showContent(currentContentIndex);
+            });
         });
         if (btnPrev != null) btnPrev.setOnClickListener(v -> {
             if (contents.isEmpty()) return;
-            currentContentIndex = (currentContentIndex - 1 + contents.size()) % contents.size();
-            showContent(currentContentIndex);
+            confirmIfRecording(() -> {
+                currentContentIndex = (currentContentIndex - 1 + contents.size()) % contents.size();
+                showContent(currentContentIndex);
+            });
         });
+    }
+
+    /**
+     * R4-M8 FIX: nếu đang ghi âm, hỏi user xác nhận trước khi chuyển câu.
+     * Khi user xác nhận, ta abort recorder + speech recognizer để transcribe cũ
+     * không fire callback so sánh với câu mới.
+     */
+    private void confirmIfRecording(Runnable onConfirm) {
+        if (!isRecording) {
+            // Không đang record — nhưng có thể đang transcribe (speechRecognizer
+            // đang chạy). Nếu có, cancel speechRecognizer trước khi chuyển câu.
+            cancelSpeechRecognizerIfActive();
+            onConfirm.run();
+            return;
+        }
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("Đang ghi âm")
+                .setMessage("Bạn đang ghi âm câu này. Dừng và chuyển câu khác?")
+                .setPositiveButton("Dừng và chuyển", (d, w) -> {
+                    abortRecording();
+                    onConfirm.run();
+                })
+                .setNegativeButton("Tiếp tục ghi", null)
+                .show();
+    }
+
+    /** R4-M8 FIX: abort recorder + speech recognizer không để callback cũ fire. */
+    private void abortRecording() {
+        isRecording = false;
+        if (mediaRecorder != null) {
+            try { mediaRecorder.stop(); } catch (Exception ignore) {}
+            try { mediaRecorder.release(); } catch (Exception ignore) {}
+            mediaRecorder = null;
+        }
+        cancelSpeechRecognizerIfActive();
+        if (btnRecord != null) btnRecord.setEnabled(true);
+        if (btnStop != null) btnStop.setVisibility(View.GONE);
+        if (tvStatus != null) tvStatus.setText("Đã dừng ghi âm");
+    }
+
+    /**
+     * R4-C2 FIX: release SpeechRecognizer instance. Trên Android 13+ system
+     * limit 3 SpeechRecognizer instance per process — vượt sẽ throw
+     * SecurityException "Other client already listening".
+     */
+    private void cancelSpeechRecognizerIfActive() {
+        if (speechRecognizer != null) {
+            try { speechRecognizer.cancel(); } catch (Exception ignore) {}
+            try { speechRecognizer.destroy(); } catch (Exception ignore) {}
+            speechRecognizer = null;
+        }
     }
 
     /** Loads shadowing sentences from the backend.
@@ -298,6 +355,12 @@ public class ShadowingActivity extends AppCompatActivity implements TextToSpeech
             return;
         }
 
+        // R4-C2 FIX: release instance cũ (nếu còn) trước khi tạo cái mới.
+        // Trên Android 13+ system limit 3 SpeechRecognizer/process — nếu user
+        // record nhiều câu liên tiếp mà instance cũ chưa destroy, lần thứ 4
+        // throw SecurityException "Other client already listening".
+        cancelSpeechRecognizerIfActive();
+
         speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this);
         Intent recognizerIntent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
 
@@ -456,12 +519,45 @@ public class ShadowingActivity extends AppCompatActivity implements TextToSpeech
         }
     }
 
+    /**
+     * R4-C2 FIX: release SpeechRecognizer + MediaPlayer trong onPause để không
+     * leak khi user xoay máy / nhấn Home giữa lúc đang phân tích. Trên Android
+     * 13+ system limit 3 SpeechRecognizer instance/process — instance leak
+     * khiến lần recognize tiếp theo throw SecurityException.
+     */
+    @Override
+    protected void onPause() {
+        super.onPause();
+        // Nếu đang ghi âm mà user rời màn hình → abort hẳn thay vì để recorder
+        // tiếp tục chạy nền (chiếm micro, ngốn pin).
+        if (isRecording) {
+            abortRecording();
+        }
+        // Luôn cancel speech recognizer khi pause — tránh leak instance.
+        cancelSpeechRecognizerIfActive();
+        // R4-C2: tạm dừng MediaPlayer (nếu đang phát audio gốc).
+        if (mediaPlayer != null) {
+            try { if (mediaPlayer.isPlaying()) mediaPlayer.pause(); } catch (Exception ignore) {}
+        }
+    }
+
     @Override
     protected void onDestroy() {
-        if (tts != null) { tts.stop(); tts.shutdown(); }
-        if (mediaRecorder != null) { mediaRecorder.release(); mediaRecorder = null; }
-        if (mediaPlayer != null) { mediaPlayer.release(); mediaPlayer = null; }
-        if (speechRecognizer != null) { speechRecognizer.destroy(); }
+        if (tts != null) {
+            try { tts.stop(); } catch (Exception ignore) {}
+            try { tts.shutdown(); } catch (Exception ignore) {}
+            tts = null;
+        }
+        if (mediaRecorder != null) {
+            try { mediaRecorder.release(); } catch (Exception ignore) {}
+            mediaRecorder = null;
+        }
+        if (mediaPlayer != null) {
+            try { mediaPlayer.release(); } catch (Exception ignore) {}
+            mediaPlayer = null;
+        }
+        // R4-C2 FIX: dual-guard, destroy() và set null.
+        cancelSpeechRecognizerIfActive();
         super.onDestroy();
     }
 }

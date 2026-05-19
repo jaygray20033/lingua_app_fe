@@ -267,11 +267,15 @@ public class FlashcardActivity extends AppCompatActivity {
             // nhánh SRS endpoint → với legacy endpoint user có thể bấm 2 lần).
             hideRatingButtons();
             progressBar.setVisibility(View.VISIBLE);
-            Map<String, String> legacy = new HashMap<>();
+            // R4-L3 FIX: lên lịch hiện cảnh báo sau 10s nếu backend hang.
+            scheduleSubmitTimeoutWarning();
+            // R4-H4 FIX: đổi Map<String, String> → Map<String, Object> để timeMs
+            // được serialize dạng Number (đồng bộ với SRS branch). Trước đây
+            // legacy gửi "5000" (String) trong khi SRS gửi 5000 (Number) → backend
+            // có thể reject sau khi strict validation update.
+            Map<String, Object> legacy = new HashMap<>();
             legacy.put("rating", rating);
-            // LF-3: legacy endpoint nhận String map — không có timeMs nguyên, nên
-            // ta vẫn đóng gói như chuỗi để backend log nếu cần.
-            legacy.put("timeMs", String.valueOf(elapsedMs));
+            legacy.put("timeMs", elapsedMs);
             // BUG-003 FIX: track call để có thể cancel trong onDestroy.
             Call<ApiResponse<ReviewResult>> legacyCall = apiService.reviewCard(
                     card.cardId > 0 ? card.cardId : card.id, legacy);
@@ -280,12 +284,14 @@ public class FlashcardActivity extends AppCompatActivity {
                         @Override public void onResponse(Call<ApiResponse<ReviewResult>> c, Response<ApiResponse<ReviewResult>> r) {
                             // BUG-003 FIX: guard để tránh truy cập View khi Activity đã destroyed.
                             if (isFinishing() || isDestroyed()) return;
+                            cancelSubmitTimeoutWarning(); // R4-L3
                             progressBar.setVisibility(View.GONE);
                             advanceAfterReview(r.isSuccessful() && r.body() != null && r.body().getData() != null
                                     ? r.body().getData().intervalDays : 0, null);
                         }
                         @Override public void onFailure(Call<ApiResponse<ReviewResult>> c, Throwable t) {
                             if (isFinishing() || isDestroyed() || c.isCanceled()) return;
+                            cancelSubmitTimeoutWarning(); // R4-L3
                             progressBar.setVisibility(View.GONE);
                             advanceAfterReview(0, null);
                         }
@@ -295,6 +301,7 @@ public class FlashcardActivity extends AppCompatActivity {
 
         hideRatingButtons();
         progressBar.setVisibility(View.VISIBLE);
+        scheduleSubmitTimeoutWarning(); // R4-L3
 
         Map<String, Object> body = new HashMap<>();
         body.put("rating", rating);
@@ -309,6 +316,7 @@ public class FlashcardActivity extends AppCompatActivity {
             @Override
             public void onResponse(Call<ApiResponse<SrsReviewResult>> call, Response<ApiResponse<SrsReviewResult>> response) {
                 if (isFinishing() || isDestroyed()) return;
+                cancelSubmitTimeoutWarning(); // R4-L3
                 progressBar.setVisibility(View.GONE);
                 SrsReviewResult result = null;
                 if (response.isSuccessful() && response.body() != null) {
@@ -321,10 +329,42 @@ public class FlashcardActivity extends AppCompatActivity {
             @Override
             public void onFailure(Call<ApiResponse<SrsReviewResult>> call, Throwable t) {
                 if (isFinishing() || isDestroyed() || call.isCanceled()) return;
+                cancelSubmitTimeoutWarning(); // R4-L3
                 progressBar.setVisibility(View.GONE);
                 advanceAfterReview(0, null);
             }
         });
+    }
+
+    /**
+     * R4-L3 FIX: hiển thị cảnh báo "Đang chờ máy chủ…" sau 10s nếu submit
+     * vẫn chưa trả về. Trước đây nếu backend hang > 60s readTimeout user nhìn
+     * spinner xoay vô tận mà không biết đang chờ đến bao lâu.
+     */
+    private final android.os.Handler submitTimeoutHandler =
+            new android.os.Handler(android.os.Looper.getMainLooper());
+    private Runnable submitTimeoutRunnable;
+
+    private void scheduleSubmitTimeoutWarning() {
+        cancelSubmitTimeoutWarning();
+        submitTimeoutRunnable = () -> {
+            if (isFinishing() || isDestroyed()) return;
+            // Hiện Toast nhẹ + status text — không ẩn progressBar (request vẫn
+            // đang chạy).
+            try {
+                android.widget.Toast.makeText(FlashcardActivity.this,
+                        "⏳ Đang chờ máy chủ… Nếu chạy lâu, kiểm tra kết nối mạng.",
+                        android.widget.Toast.LENGTH_LONG).show();
+            } catch (Exception ignore) {}
+        };
+        submitTimeoutHandler.postDelayed(submitTimeoutRunnable, 10_000L);
+    }
+
+    private void cancelSubmitTimeoutWarning() {
+        if (submitTimeoutRunnable != null) {
+            submitTimeoutHandler.removeCallbacks(submitTimeoutRunnable);
+            submitTimeoutRunnable = null;
+        }
     }
 
     private void advanceAfterReview(int intervalDays, String newState) {
@@ -353,6 +393,8 @@ public class FlashcardActivity extends AppCompatActivity {
         // BUG B17 FIX: cancel any pending advance callbacks to avoid leaking
         // this Activity and crashing if the user rotates / leaves the screen.
         advanceHandler.removeCallbacksAndMessages(null);
+        // R4-L3 FIX: cancel timeout warning handler.
+        cancelSubmitTimeoutWarning();
         // BUG-003 FIX: hủy tất cả Retrofit Call đang chạy để callback không
         // fire sau khi Activity destroyed (tránh leak + BadTokenException).
         for (Call<?> c : pendingCalls) {

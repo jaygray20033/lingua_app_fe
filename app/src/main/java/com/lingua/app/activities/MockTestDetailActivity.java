@@ -42,7 +42,13 @@ public class MockTestDetailActivity extends AppCompatActivity {
     private long mockTestId;
     private MockTestDetail detail;
     private final List<MockTestDetail.TestQuestion> questions = new ArrayList<>();
-    private final Map<Long, String> userAnswers = new HashMap<>();
+    // R4-M3 FIX: đổi sang ConcurrentHashMap. Timer tick (main thread) iterate
+    // userAnswers.entrySet() trong submit(). Nếu user vừa put(…) vào map ngay
+    // lúc timer fire auto-submit, có thể gây ConcurrentModificationException
+    // trên Dalvik (Android <7) hoặc silent corrupt trên ART (≥7). Dù cả hai
+    // chạy main thread, modification trong cùng vòng iterate (vd user bấm next
+    // trước khi timer-fired submit() hoàn thành) vẫn nguy hiểm.
+    private final Map<Long, String> userAnswers = new java.util.concurrent.ConcurrentHashMap<>();
     private int currentIndex = 0;
     private long startedAtMs = 0;
 
@@ -323,8 +329,9 @@ public class MockTestDetailActivity extends AppCompatActivity {
      * thành chuỗi rỗng).
      */
     private int countAnsweredNonEmpty() {
+        // R4-M3 FIX: snapshot trước khi iterate cho consistency.
         int n = 0;
-        for (String v : userAnswers.values()) {
+        for (String v : new ArrayList<>(userAnswers.values())) {
             if (v != null && !v.trim().isEmpty()) n++;
         }
         return n;
@@ -332,9 +339,15 @@ public class MockTestDetailActivity extends AppCompatActivity {
 
     private void submit() {
         timerHandler.removeCallbacks(timerTick);
+        // R4-M3 FIX: snapshot userAnswers trước khi iterate để tránh
+        // ConcurrentModificationException nếu user vừa put() vào map giữa lúc
+        // ta serialize body (ví dụ user bấm next ngay trước khi timer fire
+        // auto-submit). Mặc dù đã đổi sang ConcurrentHashMap, snapshot vẫn an
+        // toàn hơn nữa.
+        Map<Long, String> snapshot = new HashMap<>(userAnswers);
         Map<String, Object> body = new HashMap<>();
         List<Map<String, Object>> answers = new ArrayList<>();
-        for (Map.Entry<Long, String> e : userAnswers.entrySet()) {
+        for (Map.Entry<Long, String> e : snapshot.entrySet()) {
             Map<String, Object> a = new HashMap<>();
             a.put("questionId", e.getKey());
             a.put("question_id", e.getKey());

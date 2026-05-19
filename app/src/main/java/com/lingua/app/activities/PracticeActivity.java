@@ -99,6 +99,28 @@ public class PracticeActivity extends AppCompatActivity implements TextToSpeech.
     // không hỗ trợ ngôn ngữ).
     private boolean ttsReady = false;
 
+    // R4-H1 FIX: keys cho onSaveInstanceState / onRestoreInstanceState để bảo
+    // toàn tiến độ bài học khi user xoay máy. Trước đây toàn bộ state
+    // (currentIndex, score, attemptId, exercises[], exerciseStartMs,
+    // orderAnswer, matchUserPairs) bị mất → app gọi startLesson() lần thứ hai
+    // → backend tạo attempt MỚI → user mất XP/streak của attempt cũ.
+    private static final String STATE_CURRENT_INDEX     = "r4_current_index";
+    private static final String STATE_SCORE             = "r4_score";
+    private static final String STATE_ATTEMPT_ID        = "r4_attempt_id";
+    private static final String STATE_LESSON_ID         = "r4_lesson_id";
+    private static final String STATE_EXERCISES_JSON    = "r4_exercises_json";
+    private static final String STATE_CURRENT_HEARTS    = "r4_current_hearts";
+    private static final String STATE_EXERCISE_START_MS = "r4_exercise_start_ms";
+    private static final String STATE_ORDER_ANSWER      = "r4_order_answer";
+    private static final String STATE_MATCH_USER_PAIRS_K= "r4_match_pairs_k";
+    private static final String STATE_MATCH_USER_PAIRS_V= "r4_match_pairs_v";
+    private static final String STATE_HAS_LISTENED      = "r4_has_listened";
+    private static final String STATE_ANSWER_LOCKED     = "r4_answer_locked";
+
+    // R4-H1 FIX: cờ để showExercise() biết đây là restore (không reset start
+    // timer / has-listened flag) hay là exercise mới.
+    private boolean restoredFromState = false;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -106,7 +128,12 @@ public class PracticeActivity extends AppCompatActivity implements TextToSpeech.
 
         apiService = ApiClient.getService(this);
         tts = new TextToSpeech(this, this);
-        lessonId = getIntent().getLongExtra("lessonId", 1);
+
+        // R4-C1 FIX: dùng sentinel -1L thay vì default 1 — tránh start lesson
+        // #1 ngoài ý muốn khi Activity được start mà thiếu extra "lessonId"
+        // (deep-link, notification, lỗi navigation). Đồng bộ với LessonActivity
+        // (R3-M6).
+        lessonId = getIntent().getLongExtra("lessonId", -1L);
 
         // U16 FIX: load sound/haptic prefs (keys defined in SettingsActivity).
         SharedPreferences prefs = getSharedPreferences("LinguaPrefs", MODE_PRIVATE);
@@ -115,7 +142,108 @@ public class PracticeActivity extends AppCompatActivity implements TextToSpeech.
 
         initViews();
         loadHearts();
-        startLesson();
+
+        // R4-H1 FIX: nếu có savedInstanceState, restore state thay vì gọi
+        // startLesson() lần nữa (sẽ tạo attempt mới trên backend).
+        if (savedInstanceState != null && restoreStateFromBundle(savedInstanceState)) {
+            restoredFromState = true;
+            // Không gọi startLesson() — attemptId đã có sẵn, exercises đã restore.
+        } else {
+            // R4-C1 FIX: validate lessonId trước khi start — không cho start
+            // với id <= 0.
+            if (lessonId <= 0) {
+                new AlertDialog.Builder(this)
+                        .setTitle("Không xác định được bài học")
+                        .setMessage("Thiếu thông tin bài học. Vui lòng quay lại danh sách bài học.")
+                        .setPositiveButton("Đóng", (d, w) -> finish())
+                        .setCancelable(false)
+                        .show();
+                return;
+            }
+            startLesson();
+        }
+    }
+
+    /**
+     * R4-H1 FIX: save tiến độ bài học trước khi configuration change
+     * (rotation, language change, dark-mode toggle, low memory) hoặc process
+     * death. Lưu attemptId nên có thể reload exercises từ backend bằng cách
+     * gọi loadExercises() — nhưng để an toàn ta serialize luôn cả exercises
+     * list dưới dạng JSON (gson) để khôi phục instant kể cả khi offline.
+     */
+    @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
+        outState.putInt(STATE_CURRENT_INDEX, currentIndex);
+        outState.putInt(STATE_SCORE, score);
+        outState.putLong(STATE_ATTEMPT_ID, attemptId);
+        outState.putLong(STATE_LESSON_ID, lessonId);
+        outState.putInt(STATE_CURRENT_HEARTS, currentHearts);
+        outState.putLong(STATE_EXERCISE_START_MS, exerciseStartMs);
+        outState.putBoolean(STATE_HAS_LISTENED, hasListenedThisExercise);
+        outState.putBoolean(STATE_ANSWER_LOCKED, answerLocked);
+        try {
+            outState.putString(STATE_EXERCISES_JSON, gson.toJson(exercises));
+        } catch (Exception ignore) {}
+        outState.putStringArrayList(STATE_ORDER_ANSWER, new ArrayList<>(orderAnswer));
+        ArrayList<String> mk = new ArrayList<>(matchUserPairs.keySet());
+        ArrayList<String> mv = new ArrayList<>();
+        for (String k : mk) mv.add(matchUserPairs.get(k));
+        outState.putStringArrayList(STATE_MATCH_USER_PAIRS_K, mk);
+        outState.putStringArrayList(STATE_MATCH_USER_PAIRS_V, mv);
+    }
+
+    /** R4-H1 FIX: restore state lưu bởi onSaveInstanceState. */
+    private boolean restoreStateFromBundle(Bundle s) {
+        try {
+            long savedLessonId = s.getLong(STATE_LESSON_ID, -1L);
+            if (savedLessonId <= 0) return false;
+            // Re-validate lessonId match — nếu khác (impossible nhưng phòng xa),
+            // ta tin lessonId trong intent hiện tại.
+            if (lessonId <= 0) lessonId = savedLessonId;
+            attemptId = s.getLong(STATE_ATTEMPT_ID, -1L);
+            currentIndex = s.getInt(STATE_CURRENT_INDEX, 0);
+            score = s.getInt(STATE_SCORE, 0);
+            currentHearts = s.getInt(STATE_CURRENT_HEARTS, -1);
+            exerciseStartMs = s.getLong(STATE_EXERCISE_START_MS, 0L);
+            hasListenedThisExercise = s.getBoolean(STATE_HAS_LISTENED, false);
+            answerLocked = s.getBoolean(STATE_ANSWER_LOCKED, false);
+
+            String exJson = s.getString(STATE_EXERCISES_JSON);
+            exercises.clear();
+            if (exJson != null && !exJson.isEmpty()) {
+                Exercise[] arr = gson.fromJson(exJson, Exercise[].class);
+                if (arr != null) {
+                    for (Exercise e : arr) exercises.add(e);
+                }
+            }
+            orderAnswer.clear();
+            ArrayList<String> oa = s.getStringArrayList(STATE_ORDER_ANSWER);
+            if (oa != null) orderAnswer.addAll(oa);
+            matchUserPairs.clear();
+            ArrayList<String> mk = s.getStringArrayList(STATE_MATCH_USER_PAIRS_K);
+            ArrayList<String> mv = s.getStringArrayList(STATE_MATCH_USER_PAIRS_V);
+            if (mk != null && mv != null && mk.size() == mv.size()) {
+                for (int i = 0; i < mk.size(); i++) matchUserPairs.put(mk.get(i), mv.get(i));
+            }
+
+            // Restore UI sau khi views sẵn sàng.
+            runOnUiThread(() -> {
+                if (!exercises.isEmpty() && currentIndex < exercises.size()) {
+                    // Hiển thị lại bài tập hiện tại — không reset start time / listen-flag
+                    // (đã restore từ bundle).
+                    showExercise(currentIndex);
+                } else if (attemptId > 0 && exercises.isEmpty()) {
+                    // Edge case: chỉ còn attemptId, không có exercises (bundle bị strip)
+                    // → fetch lại exercises bằng attemptId / lessonId.
+                    loadExercises();
+                }
+            });
+            return true;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
     }
 
     /**
@@ -341,8 +469,24 @@ public class PracticeActivity extends AppCompatActivity implements TextToSpeech.
         btnSubmit.setAlpha(1.0f);
         if (btnSkip != null) btnSkip.setVisibility(View.VISIBLE); // BUG U6
 
+        // R4-M6 FIX: enable/disable btnHint dựa vào việc bài tập có hint hay
+        // không. Trước đây btnHint luôn VISIBLE → user bấm việc không xảy ra
+        // → confusion. Giờ disable + giảm alpha hoặc ẩn hẳn nếu không có hint.
+        String hintTextPreview = ex.hintJson != null ? extractHintText(ex.hintJson) : null;
+        boolean hasHint = hintTextPreview != null && !hintTextPreview.isEmpty();
+        if (btnHint != null) {
+            btnHint.setEnabled(hasHint);
+            btnHint.setAlpha(hasHint ? 1.0f : 0.4f);
+            btnHint.setVisibility(hasHint ? View.VISIBLE : View.GONE);
+        }
+
         // UX-3 FIX: reset listen-flag mỗi khi chuyển bài mới.
-        hasListenedThisExercise = false;
+        // R4-H1: chỉ reset nếu không phải đang restore từ savedInstanceState.
+        if (!restoredFromState) {
+            hasListenedThisExercise = false;
+        } else {
+            restoredFromState = false;
+        }
         tvProgress.setText(String.format(Locale.getDefault(), "Bài tập %d/%d", index + 1, exercises.size()));
 
         // overall lesson progress
@@ -989,12 +1133,51 @@ public class PracticeActivity extends AppCompatActivity implements TextToSpeech.
         showExercise(currentIndex + 1);
     }
 
+    /**
+     * R4-L4 FIX: parse hintJson đúng cách thay vì gọi toString() — trước đây
+     * user nhìn thấy "💡 {hint=Hãy chú ý đến trạng từ}" (dạng Map.toString)
+     * thay vì "💡 Hãy chú ý đến trạng từ". Hỗ trợ cả 3 kiểu:
+     *  - String thuần
+     *  - Map/JsonObject có field "hint" hoặc "text"
+     *  - Bất kỳ kiểu nào khác → fallback toString() đã được làm sạch.
+     */
     private void showHint() {
         Exercise ex = exercises.get(currentIndex);
-        if (ex.hintJson != null) {
-            tvHint.setText("💡 " + ex.hintJson.toString());
-            tvHint.setVisibility(View.VISIBLE);
-        }
+        if (ex.hintJson == null) return;
+        String hintText = extractHintText(ex.hintJson);
+        if (hintText == null || hintText.isEmpty()) return;
+        tvHint.setText("💡 " + hintText);
+        tvHint.setVisibility(View.VISIBLE);
+    }
+
+    /** R4-L4 FIX: parse hint từ nhiều kiểu cấu trúc khác nhau. */
+    private String extractHintText(Object hintObj) {
+        if (hintObj == null) return null;
+        if (hintObj instanceof String) return (String) hintObj;
+        try {
+            JsonElement el = gson.toJsonTree(hintObj);
+            if (el == null) return null;
+            if (el.isJsonPrimitive()) return el.getAsString();
+            if (el.isJsonObject()) {
+                JsonObject jo = el.getAsJsonObject();
+                if (jo.has("hint") && jo.get("hint").isJsonPrimitive())
+                    return jo.get("hint").getAsString();
+                if (jo.has("text") && jo.get("text").isJsonPrimitive())
+                    return jo.get("text").getAsString();
+                if (jo.has("message") && jo.get("message").isJsonPrimitive())
+                    return jo.get("message").getAsString();
+                // Nếu có exactly 1 entry primitive, lấy value đó.
+                if (jo.entrySet().size() == 1) {
+                    JsonElement v = jo.entrySet().iterator().next().getValue();
+                    if (v.isJsonPrimitive()) return v.getAsString();
+                }
+            }
+            if (el.isJsonArray() && el.getAsJsonArray().size() > 0) {
+                JsonElement first = el.getAsJsonArray().get(0);
+                if (first.isJsonPrimitive()) return first.getAsString();
+            }
+        } catch (Exception ignore) {}
+        return null;
     }
 
     /**
@@ -1149,7 +1332,23 @@ public class PracticeActivity extends AppCompatActivity implements TextToSpeech.
 
     @Override
     protected void onDestroy() {
-        if (tts != null) { tts.stop(); tts.shutdown(); }
+        // R4-M2 FIX: shutdown TTS an toàn hơn — clear utterance listener trước
+        // (callback có thể fire trên Activity đã destroy gây NPE/leak), gọi
+        // stop() hai lần (một số OEM cần) và abandon audio focus để audio
+        // không kẹt lại vài giây sau khi finish.
+        if (tts != null) {
+            try { tts.setOnUtteranceProgressListener(null); } catch (Exception ignore) {}
+            try { if (tts.isSpeaking()) tts.stop(); } catch (Exception ignore) {}
+            try { tts.stop(); } catch (Exception ignore) {}
+            try { tts.shutdown(); } catch (Exception ignore) {}
+            tts = null;
+        }
+        // R4-M2 FIX: abandon audio focus nếu có (một số OEM Samsung/Xiaomi
+        // giữ focus sau TTS shutdown → audio app khác bị mute vài giây).
+        try {
+            AudioManager am = (AudioManager) getSystemService(AUDIO_SERVICE);
+            if (am != null) am.abandonAudioFocus(null);
+        } catch (Exception ignore) {}
         // BUG 7.1 FIX: release MediaPlayer nếu user thoát màn hình khi audio
         // vẫn đang chuẩn bị / phát → tránh leak native AudioTrack handle.
         releaseCurrentMediaPlayer();

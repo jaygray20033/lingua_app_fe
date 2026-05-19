@@ -61,6 +61,18 @@ public class AIRoleplayActivity extends AppCompatActivity implements TextToSpeec
     private EventSource activeEventSource;
     private OkHttpClient activeSseClient;
 
+    // R4-H6 FIX: cờ đồng bộ (synchronous) để chặn double-tap trên btnStartSession
+    // trước khi setEnabled(false) kịp áp dụng (UI thread có độ trễ
+    // 50-100ms trên thiết bị low-end → 2 session tạo song song).
+    private boolean startingSession = false;
+
+    // R4-L5 FIX: cache 2 GradientDrawable cho user + AI bubble để ChatAdapter
+    // không tạo new GradientDrawable() mỗi onBindViewHolder → giảm GC pressure
+    // trên thiết bị low-end khi conversation > 100 messages.
+    private static android.graphics.drawable.GradientDrawable sUserBubbleBg;
+    private static android.graphics.drawable.GradientDrawable sAiBubbleBg;
+    private static boolean sBubbleCacheIsDark = false;
+
     // U6 FIX: keys used to restore chat history across rotation / process death.
     private static final String STATE_MESSAGES_ROLE = "chat_roles";
     private static final String STATE_MESSAGES_CONTENT = "chat_contents";
@@ -107,6 +119,24 @@ public class AIRoleplayActivity extends AppCompatActivity implements TextToSpeec
     @Override
     protected void onSaveInstanceState(@androidx.annotation.NonNull Bundle outState) {
         super.onSaveInstanceState(outState);
+        // R4-C3 FIX: cancel SSE EventSource TRƯỚC khi configuration change —
+        // nếu không, sau rotation Activity mới sẽ start SSE thứ hai (nếu user
+        // gõ tin nhắn) trong khi SSE cũ vẫn streaming → 2 callback chạy song
+        // song → updateLastMessage() interleave/scrambled text.
+        if (activeEventSource != null) {
+            try { activeEventSource.cancel(); } catch (Exception ignore) {}
+            activeEventSource = null;
+        }
+        if (activeSseClient != null) {
+            try {
+                activeSseClient.dispatcher().cancelAll();
+            } catch (Exception ignore) {}
+            // Không shutdown executor / evict pool ở đây: Activity mới sau
+            // configuration change vẫn cần build client mới nhưng ít nhất SSE
+            // cũ đã dừng.
+            activeSseClient = null;
+        }
+
         // U6 FIX: serialize chat history before configuration change.
         ArrayList<String> roles = new ArrayList<>();
         ArrayList<String> contents = new ArrayList<>();
@@ -247,10 +277,17 @@ public class AIRoleplayActivity extends AppCompatActivity implements TextToSpeec
     }
 
     private void startSession() {
+        // R4-H6 FIX: chặn double-tap đồng bộ NGAY đầu method — setEnabled(false)
+        // là view update và có thể mất 50-100ms mới thực sự disable. Nếu user
+        // double-tap nhanh trước khi setEnabled() áp dụng → 2 session tạo
+        // song song → sessionId thứ 2 ghi đè thứ 1 → mất context.
+        if (startingSession) return;
+        startingSession = true;
+        // Disable button TRƯỚC khi set progressBar (đổi thứ tự so với bản cũ).
+        btnStartSession.setEnabled(false);
         progressBar.setVisibility(View.VISIBLE);
         // BUG-013 FIX: disable nút "Bắt đầu phiên" trong khi request đang inflight
         // để tránh user spam tap → nhiều session được tạo song song.
-        btnStartSession.setEnabled(false);
         Map<String, Object> body = new HashMap<>();
         body.put("language", selectedLanguage);
         body.put("type", "ROLEPLAY");
@@ -259,10 +296,11 @@ public class AIRoleplayActivity extends AppCompatActivity implements TextToSpeec
         apiService.startSession(body).enqueue(new Callback<ApiResponse<AISession>>() {
             @Override
             public void onResponse(Call<ApiResponse<AISession>> call, Response<ApiResponse<AISession>> response) {
-                if (isFinishing() || isDestroyed()) return;
+                if (isFinishing() || isDestroyed()) { startingSession = false; return; }
                 progressBar.setVisibility(View.GONE);
                 if (response.isSuccessful() && response.body() != null && response.body().isSuccess()) {
                     sessionId = response.body().getData().sessionId;
+                    startingSession = false; // R4-H6: cho phép restart sau khi success/fail
                     runOnUiThread(() -> {
                         btnStartSession.setVisibility(View.GONE);
                         spinnerLanguage.setEnabled(false);
@@ -288,6 +326,7 @@ public class AIRoleplayActivity extends AppCompatActivity implements TextToSpeec
                     } else {
                         msg = "Không bắt đầu được phiên (mã " + response.code() + ")";
                     }
+                    startingSession = false; // R4-H6
                     runOnUiThread(() -> {
                         tvStatus.setText("⚠️ " + msg);
                         btnStartSession.setEnabled(true);
@@ -295,7 +334,8 @@ public class AIRoleplayActivity extends AppCompatActivity implements TextToSpeec
                 }
             }
             @Override public void onFailure(Call<ApiResponse<AISession>> call, Throwable t) {
-                if (isFinishing() || isDestroyed()) return;
+                if (isFinishing() || isDestroyed()) { startingSession = false; return; }
+                startingSession = false; // R4-H6
                 runOnUiThread(() -> {
                     progressBar.setVisibility(View.GONE);
                     btnStartSession.setEnabled(true);
@@ -609,23 +649,43 @@ public class AIRoleplayActivity extends AppCompatActivity implements TextToSpeec
             TextView tv = holder.itemView.findViewWithTag("msg");
             boolean isAi = "AI".equals(msg.role);
             tv.setText((isAi ? "🤖 " : "👤 ") + msg.content);
-            // Rounded bubble background via GradientDrawable, no extra XML asset needed.
-            android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
-            bg.setCornerRadius(28f);
             // 6.13 FIX: dark-mode-aware bubble colors. Đọc UI mode hiện tại để
-            // chọn màu phù hợp thay vì hardcode (trước đây bubble AI luôn xanh nhạt
-            // gây chữ trắng-trên-trắng khi dark mode).
+            // chọn màu phù hợp thay vì hardcode.
             int uiMode = container.getResources().getConfiguration().uiMode
                     & android.content.res.Configuration.UI_MODE_NIGHT_MASK;
             boolean isDark = uiMode == android.content.res.Configuration.UI_MODE_NIGHT_YES;
-            int aiBg = isDark ? 0xFF2E3B2E : 0xFFE8F5E9;
-            int userBg = isDark ? 0xFF0D47A1 : 0xFF1976D2;
             int aiText = isDark ? 0xFFE0E0E0 : 0xFF1B1B1B;
             int userText = 0xFFFFFFFF;
-            bg.setColor(isAi ? aiBg : userBg);
+            // R4-L5 FIX: lấy từ cache thay vì new GradientDrawable() mỗi onBind.
+            // Với conversation 100+ msg + scroll nhanh, GC pressure trên thiết
+            // bị low-end (RAM 2GB) giảm đáng kể.
+            android.graphics.drawable.GradientDrawable bg = getBubbleBackground(isAi, isDark);
             tv.setBackground(bg);
             tv.setTextColor(isAi ? aiText : userText);
             container.setGravity(isAi ? android.view.Gravity.START : android.view.Gravity.END);
+        }
+
+        /**
+         * R4-L5 FIX: lấy GradientDrawable từ cache; re-build cache khi day/night
+         * mode đổi. Mỗi Activity recreate sẽ kiểm tra sBubbleCacheIsDark và
+         * tiêu hủy cache cũ nếu cần.
+         */
+        private static synchronized android.graphics.drawable.GradientDrawable getBubbleBackground(boolean isAi, boolean isDark) {
+            if (sUserBubbleBg == null || sAiBubbleBg == null || sBubbleCacheIsDark != isDark) {
+                int aiBg = isDark ? 0xFF2E3B2E : 0xFFE8F5E9;
+                int userBg = isDark ? 0xFF0D47A1 : 0xFF1976D2;
+                sAiBubbleBg = new android.graphics.drawable.GradientDrawable();
+                sAiBubbleBg.setCornerRadius(28f);
+                sAiBubbleBg.setColor(aiBg);
+                sUserBubbleBg = new android.graphics.drawable.GradientDrawable();
+                sUserBubbleBg.setCornerRadius(28f);
+                sUserBubbleBg.setColor(userBg);
+                sBubbleCacheIsDark = isDark;
+            }
+            // GradientDrawable mutable; clone constant-state để mỗi bubble có phên
+            // bản riêng nhưng share underlying pixels — vẫn nhẹ hơn new() hoàn toàn.
+            return (android.graphics.drawable.GradientDrawable)
+                    (isAi ? sAiBubbleBg : sUserBubbleBg).getConstantState().newDrawable().mutate();
         }
 
         @Override

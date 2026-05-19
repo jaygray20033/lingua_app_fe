@@ -157,6 +157,17 @@ public class OnboardingActivity extends AppCompatActivity {
     public static final String KEY_PENDING_PROFILE_LEVEL = "pending_profile_level";
     public static final String KEY_PENDING_DAILY_GOAL    = "pending_daily_goal";
 
+    // R4-M5 FIX: timestamp đi kèm pending sync để retry không ghi đè dữ liệu
+    // mới hơn. Trước đây nếu user finish onboarding (lưu pending vì offline)
+    // rồi vào Settings đổi language (lưu mới), khi online →
+    // retryPendingSyncIfNeeded fire pending CŨ → ghi đè language mới đã lưu
+    // trên backend.
+    public static final String KEY_PENDING_PROFILE_TS    = "pending_profile_ts";
+    public static final String KEY_PENDING_DAILY_GOAL_TS = "pending_daily_goal_ts";
+    // Lưu thời điểm thay đổi thành công trên backend để so sánh khi retry.
+    public static final String KEY_BACKEND_PROFILE_TS    = "backend_profile_ts";
+    public static final String KEY_BACKEND_DAILY_GOAL_TS = "backend_daily_goal_ts";
+
     /** Saves user choices locally + on the backend, then opens MainActivity. */
     public void finishOnboarding() {
         SharedPreferences prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
@@ -170,10 +181,14 @@ public class OnboardingActivity extends AppCompatActivity {
         // UX-5 FIX: queue ca hai request vao pending list truoc khi gui.
         // Khi onResponse thanh cong, xoa tuong ung. Neu fail, pending van con
         // de retry lai lan sau (retryPendingSyncIfNeeded).
+        // R4-M5 FIX: gắn timestamp để retry không ghi đè thay đổi mới hơn.
+        long nowTs = System.currentTimeMillis();
         prefs.edit()
                 .putString(KEY_PENDING_PROFILE_LANG, selectedLanguage)
                 .putString(KEY_PENDING_PROFILE_LEVEL, selectedLevel)
                 .putInt(KEY_PENDING_DAILY_GOAL, selectedDailyGoal)
+                .putLong(KEY_PENDING_PROFILE_TS, nowTs)
+                .putLong(KEY_PENDING_DAILY_GOAL_TS, nowTs)
                 .apply();
 
         // BUG-008 FIX: trước đây 2 API request fire-and-forget, sau đó
@@ -218,10 +233,12 @@ public class OnboardingActivity extends AppCompatActivity {
         api.updateProfile(profile).enqueue(new Callback<ApiResponse<User>>() {
             @Override public void onResponse(Call<ApiResponse<User>> c, Response<ApiResponse<User>> r) {
                 if (r.isSuccessful() && r.body() != null && r.body().isSuccess()) {
-                    // Xoa pending khi sync thanh cong.
+                    // Xoa pending khi sync thanh cong + ghi nhận backend ts.
                     getSharedPreferences(PREFS, MODE_PRIVATE).edit()
                             .remove(KEY_PENDING_PROFILE_LANG)
                             .remove(KEY_PENDING_PROFILE_LEVEL)
+                            .remove(KEY_PENDING_PROFILE_TS)
+                            .putLong(KEY_BACKEND_PROFILE_TS, nowTs)
                             .apply();
                 }
                 runOnUiThread(onDone);
@@ -242,6 +259,8 @@ public class OnboardingActivity extends AppCompatActivity {
                 if (r.isSuccessful() && r.body() != null && r.body().isSuccess()) {
                     getSharedPreferences(PREFS, MODE_PRIVATE).edit()
                             .remove(KEY_PENDING_DAILY_GOAL)
+                            .remove(KEY_PENDING_DAILY_GOAL_TS)
+                            .putLong(KEY_BACKEND_DAILY_GOAL_TS, nowTs)
                             .apply();
                 }
                 runOnUiThread(onDone);
@@ -270,36 +289,68 @@ public class OnboardingActivity extends AppCompatActivity {
         int pendingGoal     = prefs.getInt(KEY_PENDING_DAILY_GOAL, -1);
         if (pendingLang == null && pendingLevel == null && pendingGoal < 0) return;
 
+        // R4-M5 FIX: so sánh timestamp pending với backend ts để không ghi đè
+        // dữ liệu mới hơn. Nếu pending older than backend → bỏ pending luôn.
+        long pendingProfileTs = prefs.getLong(KEY_PENDING_PROFILE_TS, 0L);
+        long backendProfileTs = prefs.getLong(KEY_BACKEND_PROFILE_TS, 0L);
+        long pendingGoalTs    = prefs.getLong(KEY_PENDING_DAILY_GOAL_TS, 0L);
+        long backendGoalTs    = prefs.getLong(KEY_BACKEND_DAILY_GOAL_TS, 0L);
+
         LinguaApiService api = ApiClient.getService(ctx);
-        if (pendingLang != null || pendingLevel != null) {
-            Map<String, Object> profile = new HashMap<>();
-            if (pendingLang != null) profile.put("targetLanguage", pendingLang);
-            if (pendingLevel != null) profile.put("currentLevel", pendingLevel);
-            api.updateProfile(profile).enqueue(new Callback<ApiResponse<User>>() {
-                @Override public void onResponse(Call<ApiResponse<User>> c, Response<ApiResponse<User>> r) {
-                    if (r.isSuccessful() && r.body() != null && r.body().isSuccess()) {
-                        prefs.edit()
-                                .remove(KEY_PENDING_PROFILE_LANG)
-                                .remove(KEY_PENDING_PROFILE_LEVEL)
-                                .apply();
+        if ((pendingLang != null || pendingLevel != null)) {
+            if (pendingProfileTs > 0 && pendingProfileTs < backendProfileTs) {
+                // R4-M5: pending cũ hơn dữ liệu đã sync thành công → dọn bỏ.
+                prefs.edit()
+                        .remove(KEY_PENDING_PROFILE_LANG)
+                        .remove(KEY_PENDING_PROFILE_LEVEL)
+                        .remove(KEY_PENDING_PROFILE_TS)
+                        .apply();
+            } else {
+                Map<String, Object> profile = new HashMap<>();
+                if (pendingLang != null) profile.put("targetLanguage", pendingLang);
+                if (pendingLevel != null) profile.put("currentLevel", pendingLevel);
+                final long retryTs = pendingProfileTs > 0 ? pendingProfileTs : System.currentTimeMillis();
+                api.updateProfile(profile).enqueue(new Callback<ApiResponse<User>>() {
+                    @Override public void onResponse(Call<ApiResponse<User>> c, Response<ApiResponse<User>> r) {
+                        if (r.isSuccessful() && r.body() != null && r.body().isSuccess()) {
+                            prefs.edit()
+                                    .remove(KEY_PENDING_PROFILE_LANG)
+                                    .remove(KEY_PENDING_PROFILE_LEVEL)
+                                    .remove(KEY_PENDING_PROFILE_TS)
+                                    .putLong(KEY_BACKEND_PROFILE_TS, retryTs)
+                                    .apply();
+                        }
                     }
-                }
-                @Override public void onFailure(Call<ApiResponse<User>> c, Throwable t) {}
-            });
+                    @Override public void onFailure(Call<ApiResponse<User>> c, Throwable t) {}
+                });
+            }
         }
         if (pendingGoal >= 0) {
-            Map<String, Object> goal = new HashMap<>();
-            goal.put("dailyXpGoal", pendingGoal);
-            goal.put("dailyGoal", pendingGoal);
-            goal.put("xp", pendingGoal);
-            api.setDailyGoal(goal).enqueue(new Callback<ApiResponse<Object>>() {
-                @Override public void onResponse(Call<ApiResponse<Object>> c, Response<ApiResponse<Object>> r) {
-                    if (r.isSuccessful() && r.body() != null && r.body().isSuccess()) {
-                        prefs.edit().remove(KEY_PENDING_DAILY_GOAL).apply();
+            if (pendingGoalTs > 0 && pendingGoalTs < backendGoalTs) {
+                // R4-M5: pending cũ hơn → dọn bỏ, không retry.
+                prefs.edit()
+                        .remove(KEY_PENDING_DAILY_GOAL)
+                        .remove(KEY_PENDING_DAILY_GOAL_TS)
+                        .apply();
+            } else {
+                Map<String, Object> goal = new HashMap<>();
+                goal.put("dailyXpGoal", pendingGoal);
+                goal.put("dailyGoal", pendingGoal);
+                goal.put("xp", pendingGoal);
+                final long retryTs = pendingGoalTs > 0 ? pendingGoalTs : System.currentTimeMillis();
+                api.setDailyGoal(goal).enqueue(new Callback<ApiResponse<Object>>() {
+                    @Override public void onResponse(Call<ApiResponse<Object>> c, Response<ApiResponse<Object>> r) {
+                        if (r.isSuccessful() && r.body() != null && r.body().isSuccess()) {
+                            prefs.edit()
+                                    .remove(KEY_PENDING_DAILY_GOAL)
+                                    .remove(KEY_PENDING_DAILY_GOAL_TS)
+                                    .putLong(KEY_BACKEND_DAILY_GOAL_TS, retryTs)
+                                    .apply();
+                        }
                     }
-                }
-                @Override public void onFailure(Call<ApiResponse<Object>> c, Throwable t) {}
-            });
+                    @Override public void onFailure(Call<ApiResponse<Object>> c, Throwable t) {}
+                });
+            }
         }
     }
 

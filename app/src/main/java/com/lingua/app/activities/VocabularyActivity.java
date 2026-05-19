@@ -3,6 +3,7 @@ package com.lingua.app.activities;
 import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.Looper;
 import android.speech.tts.TextToSpeech;
 import android.text.Editable;
 import android.text.TextWatcher;
@@ -48,7 +49,9 @@ public class VocabularyActivity extends AppCompatActivity implements TextToSpeec
     private TextToSpeech tts;
     private LinguaApiService apiService;
     private android.media.MediaPlayer mediaPlayer;
-    private final Handler searchDebounce = new Handler();
+    // R4-L1 FIX: Handler() no-arg deprecated từ API 30 (Android 11). Pass
+    // Looper.getMainLooper() explicit — đồng bộ với fix CB-4 ở MockTestDetailActivity.
+    private final Handler searchDebounce = new Handler(Looper.getMainLooper());
     private Runnable searchRunnable;
 
     private String currentLanguage = "ja";
@@ -464,8 +467,26 @@ public class VocabularyActivity extends AppCompatActivity implements TextToSpeec
         }
     }
 
+    /**
+     * R4-M1 FIX: cancel pending debounce runnable khi user rời màn hình.
+     * Trước đây nếu user gõ search rồi nhấn Home ngay, runnable vẫn fire sau
+     * 350ms → gọi loadWords() trên Activity đã paused → tốn data, có thể
+     * truy cập wordAdapter sau khi vào background.
+     */
+    @Override
+    protected void onPause() {
+        super.onPause();
+        if (searchRunnable != null) {
+            searchDebounce.removeCallbacks(searchRunnable);
+            searchRunnable = null;
+        }
+    }
+
     @Override
     protected void onDestroy() {
+        // R4-M1 FIX: dual-guard — remove cả trong onDestroy phòng trường hợp
+        // onPause không fire (đặc biệt với process death giữa onSaveInstanceState).
+        searchDebounce.removeCallbacksAndMessages(null);
         if (tts != null) { tts.stop(); tts.shutdown(); }
         if (mediaPlayer != null) { try { mediaPlayer.release(); } catch (Exception ignore) {} }
         super.onDestroy();
