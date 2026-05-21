@@ -436,6 +436,11 @@ public class AIRoleplayActivity extends AppCompatActivity implements TextToSpeec
 
         EventSource.Factory factory = EventSources.createFactory(sseClient);
         // BUG #8 FIX: lưu reference vào activeEventSource thay vì discard.
+        // R7-007 FIX (Round 7): mỗi runOnUiThread() trong SSE callbacks phải kiểm
+        // tra isFinishing() / isDestroyed() trước khi đụng UI. Trước đây nếu user
+        // thoát Activity giữa lúc stream đang chạy, một chunk SSE đến muộn (race
+        // với cancel trong onDestroy) sẽ gọi notifyItemChanged trên adapter của
+        // Activity đã bị destroy → IllegalStateException / WindowLeaked.
         activeEventSource = factory.newEventSource(request, new EventSourceListener() {
             @Override
             public void onEvent(EventSource eventSource, String id, String type, String data) {
@@ -444,13 +449,17 @@ public class AIRoleplayActivity extends AppCompatActivity implements TextToSpeec
                     if (json.has("content")) {
                         String chunk = json.getString("content");
                         aiResponse.append(chunk);
-                        runOnUiThread(() -> updateLastMessage(aiResponse.toString()));
+                        runOnUiThread(() -> {
+                            if (isFinishing() || isDestroyed()) return;
+                            updateLastMessage(aiResponse.toString());
+                        });
                     }
                     if (json.has("done") && json.getBoolean("done")) {
                         // R5-016 FIX: réactive btnSend dès que la SSE est complète.
                         resetSendingState();
                         String fullText = aiResponse.toString();
                         runOnUiThread(() -> {
+                            if (isFinishing() || isDestroyed()) return;
                             // U7 FIX: French → Vietnamese.
                             tvStatus.setText("✅ Đã nhận phản hồi");
                             speakAI(fullText);
@@ -464,6 +473,7 @@ public class AIRoleplayActivity extends AppCompatActivity implements TextToSpeec
                 // R5-016 FIX: réactive btnSend en cas d'échec SSE pour permettre un retry.
                 resetSendingState();
                 runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) return;
                     if (aiResponse.length() == 0) {
                         // U7 FIX: French → Vietnamese.
                         addMessage("AI", "Xin lỗi, đã có lỗi xảy ra. Hãy thử lại nhé.");
@@ -482,7 +492,10 @@ public class AIRoleplayActivity extends AppCompatActivity implements TextToSpeec
         });
 
         // Add placeholder message
-        runOnUiThread(() -> addMessage("AI", "..."));
+        runOnUiThread(() -> {
+            if (isFinishing() || isDestroyed()) return;
+            addMessage("AI", "...");
+        });
     }
 
     private void updateLastMessage(String content) {
