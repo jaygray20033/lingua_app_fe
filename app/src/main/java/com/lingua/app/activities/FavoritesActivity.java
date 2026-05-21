@@ -82,6 +82,17 @@ public class FavoritesActivity extends AppCompatActivity {
         loadFavorites();
     }
 
+    /**
+     * R5-023 FIX: Si l'user retire un favori depuis WordDetailActivity ou
+     * GrammarDetailActivity, en revenant ici la liste devait être stale.
+     * Maintenant on recharge à chaque onResume() pour refléter les changements.
+     */
+    @Override
+    protected void onResume() {
+        super.onResume();
+        loadFavorites();
+    }
+
     private void updateExploreButtonLabel() {
         if (btnExploreEmpty == null) return;
         btnExploreEmpty.setText(

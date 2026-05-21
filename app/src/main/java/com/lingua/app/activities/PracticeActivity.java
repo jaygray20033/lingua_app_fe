@@ -263,6 +263,12 @@ public class PracticeActivity extends AppCompatActivity implements TextToSpeech.
     /**
      * U2 FIX: confirm before leaving the lesson so the user does not lose
      * progress by accidentally tapping back.
+     *
+     * R5-024 FIX: si l'utilisateur confirme la sortie ET qu'un attempt est
+     * en cours côté backend, on appelle POST /lessons/attempts/{id}/abandon
+     * (fire-and-forget) pour fermer proprement l'attempt → status = ABANDONED.
+     * Cela évite que les attempts restent en IN_PROGRESS éternellement et
+     * pollue les analytics / le streak future. Pas de pénalité XP.
      */
     @Override
     public void onBackPressed() {
@@ -273,9 +279,40 @@ public class PracticeActivity extends AppCompatActivity implements TextToSpeech.
         new AlertDialog.Builder(this)
                 .setTitle("Thoát bài học?")
                 .setMessage("Tiến trình hiện tại sẽ không được lưu. Bạn có chắc chắn muốn thoát không?")
-                .setPositiveButton("Thoát", (d, w) -> super.onBackPressed())
+                .setPositiveButton("Thoát", (d, w) -> {
+                    abandonAttemptIfNeeded();
+                    super.onBackPressed();
+                })
                 .setNegativeButton("Tiếp tục học", null)
                 .show();
+    }
+
+    /**
+     * R5-024: fire-and-forget POST /lessons/attempts/{id}/abandon.
+     * On ignore le résultat (le serveur est idempotent et l'utilisateur
+     * a déjà quitté l'écran — pas besoin de feedback UI).
+     */
+    private void abandonAttemptIfNeeded() {
+        if (attemptId <= 0) return;
+        try {
+            apiService.abandonLesson(attemptId).enqueue(
+                new retrofit2.Callback<com.lingua.app.models.ApiResponse<java.util.Map<String, Object>>>() {
+                    @Override public void onResponse(
+                            retrofit2.Call<com.lingua.app.models.ApiResponse<java.util.Map<String, Object>>> call,
+                            retrofit2.Response<com.lingua.app.models.ApiResponse<java.util.Map<String, Object>>> response) {
+                        // no-op : on a juste besoin du fire-and-forget.
+                    }
+                    @Override public void onFailure(
+                            retrofit2.Call<com.lingua.app.models.ApiResponse<java.util.Map<String, Object>>> call,
+                            Throwable t) {
+                        // Network error : le serveur nettoiera via cron sur les
+                        // attempts IN_PROGRESS trop anciens (TODO future). Pas critique.
+                    }
+                }
+            );
+        } catch (Exception ignored) {
+            // Ne jamais bloquer la sortie de l'écran sur cette opération.
+        }
     }
 
     private void initViews() {
@@ -838,6 +875,13 @@ public class PracticeActivity extends AppCompatActivity implements TextToSpeech.
     }
 
     private void submitAnswer() {
+        // R5-015 FIX: guard contre le double-tap dès la PREMIERE ligne. Avant,
+        // le flag answerLocked n'était positionné que dans submitSelectedAnswer()
+        // (donc après ~30ms de validation/Toast/build de payload). Si l'utilisateur
+        // double-tappait dans cet intervalle, on pouvait entrer 2 fois dans
+        // submitAnswer() → 2 appels submitAnswer côté serveur → 2 hearts perdus.
+        if (answerLocked) return;
+
         Exercise ex = exercises.get(currentIndex);
         String type = ex.type != null ? ex.type : "";
         if ("SENTENCE_ORDER".equals(type)) {

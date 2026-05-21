@@ -45,6 +45,11 @@ public class LeaderboardActivity extends AppCompatActivity {
     private LinguaApiService apiService;
     private SessionManager session;
     private String currentPeriod = "weekly";
+    // R5-025 FIX: track the in-flight calls so we can cancel them in onPause()/onDestroy().
+    // Avant: si l'user quittait l'activity pendant le loading, le callback Retrofit
+    // pouvait toujours fire et toucher des Views détruites → NPE / window leaked.
+    private Call<ApiResponse<List<LeaderboardEntry>>> currentCall;
+    private Call<ApiResponse<List<LeaderboardEntry>>> fallbackCall;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -99,17 +104,34 @@ public class LeaderboardActivity extends AppCompatActivity {
                 }
             }
             @Override public void onFailure(Call<ApiResponse<List<LeaderboardEntry>>> call, Throwable t) {
+                if (call.isCanceled()) return; // R5-025: skip if user already left.
                 progressBar.setVisibility(View.GONE);
                 // Fallback to base endpoint when ?period= is not implemented
                 if (!"all".equals(currentPeriod)) {
-                    apiService.getLeaderboard().enqueue(simpleFallback());
+                    fallbackCall = apiService.getLeaderboard();
+                    fallbackCall.enqueue(simpleFallback());
                 } else {
                     Toast.makeText(LeaderboardActivity.this, "Lỗi: " + t.getMessage(), Toast.LENGTH_SHORT).show();
                 }
             }
         };
 
-        apiService.getLeaderboardByPeriod(currentPeriod).enqueue(cb);
+        // R5-025: cancel any previous in-flight call before starting a new one (rapid tab-switch)
+        if (currentCall != null) currentCall.cancel();
+        if (fallbackCall != null) fallbackCall.cancel();
+        currentCall = apiService.getLeaderboardByPeriod(currentPeriod);
+        currentCall.enqueue(cb);
+    }
+
+    /**
+     * R5-025 FIX: cancel in-flight Retrofit calls when the activity is paused
+     * to prevent NPE / "window already detached" crashes from late callbacks.
+     */
+    @Override
+    protected void onPause() {
+        super.onPause();
+        if (currentCall != null) { currentCall.cancel(); currentCall = null; }
+        if (fallbackCall != null) { fallbackCall.cancel(); fallbackCall = null; }
     }
 
     private Callback<ApiResponse<List<LeaderboardEntry>>> simpleFallback() {

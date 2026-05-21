@@ -1,15 +1,18 @@
 package com.lingua.app.utils;
 
+import android.Manifest;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.os.Build;
 
 import androidx.annotation.NonNull;
 import androidx.core.app.NotificationCompat;
+import androidx.core.content.ContextCompat;
 import androidx.work.Constraints;
 import androidx.work.Data;
 import androidx.work.ExistingPeriodicWorkPolicy;
@@ -45,6 +48,19 @@ public final class NotificationScheduler {
     public static final String WORK_DAILY = "lingua_daily_reminder_work";
 
     private NotificationScheduler() {}
+
+    /**
+     * R5-033 FIX — Vérifie que l'app a la permission POST_NOTIFICATIONS sur
+     * Android 13+ (API 33). Sur les versions antérieures, retourne true (permission
+     * implicite). Toutes les méthodes `show*` doivent appeler cette check avant
+     * `nm.notify()` pour éviter SecurityException + faire échouer silencieusement
+     * si l'utilisateur a refusé la permission depuis Settings.
+     */
+    public static boolean canShowNotifications(Context ctx) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return true;
+        return ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS)
+                == PackageManager.PERMISSION_GRANTED;
+    }
 
     /** Create notification channels (required on Android 8+). */
     public static void ensureChannels(Context ctx) {
@@ -104,6 +120,10 @@ public final class NotificationScheduler {
 
     /** One-shot streak-warning notification (fired by the app when streak < 24h left). */
     public static void showStreakAlert(Context ctx, int hoursLeft) {
+        // R5-033 FIX: bail-out silencieux si la permission est révoquée
+        // (Android 13+). Évite SecurityException sur nm.notify() qui ferait
+        // crasher des WorkManager workers.
+        if (!canShowNotifications(ctx)) return;
         ensureChannels(ctx);
         NotificationManager nm = ctx.getSystemService(NotificationManager.class);
         if (nm == null) return;
@@ -123,6 +143,8 @@ public final class NotificationScheduler {
 
     /** One-shot achievement notification. */
     public static void showAchievementUnlocked(Context ctx, String title, String body) {
+        // R5-033 FIX: cf. showStreakAlert.
+        if (!canShowNotifications(ctx)) return;
         ensureChannels(ctx);
         NotificationManager nm = ctx.getSystemService(NotificationManager.class);
         if (nm == null) return;
@@ -158,6 +180,9 @@ public final class NotificationScheduler {
 
         @NonNull @Override public Result doWork() {
             Context ctx = getApplicationContext();
+            // R5-033 FIX: ne pas tenter de notifier si la permission a été révoquée
+            // (sinon SecurityException → Worker retry → bad backoff loop).
+            if (!canShowNotifications(ctx)) return Result.success();
             ensureChannels(ctx);
             NotificationManager nm = ctx.getSystemService(NotificationManager.class);
             if (nm == null) return Result.success();

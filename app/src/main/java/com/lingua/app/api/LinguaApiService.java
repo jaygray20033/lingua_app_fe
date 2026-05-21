@@ -236,6 +236,11 @@ public interface LinguaApiService {
     @POST("lessons/attempts/{attemptId}/complete")
     Call<ApiResponse<LessonResult>> completeLesson(@Path("attemptId") long attemptId);
 
+    // R5-024: abandon an in-progress attempt (user back/quit). Idempotent server-side,
+    // no XP penalty. Response body is intentionally generic — we only care about HTTP code.
+    @POST("lessons/attempts/{attemptId}/abandon")
+    Call<ApiResponse<Map<String, Object>>> abandonLesson(@Path("attemptId") long attemptId);
+
     // 1.3 — GET /api/lessons/review-queue
     @GET("lessons/review-queue")
     Call<ApiResponse<List<Map<String, Object>>>> getReviewQueue();

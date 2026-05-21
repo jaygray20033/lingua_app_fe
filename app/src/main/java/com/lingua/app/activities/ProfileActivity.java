@@ -416,6 +416,13 @@ public class ProfileActivity extends AppCompatActivity {
 
     // 6.14 FIX: chặn double-click "Đăng xuất" — trước đây bấm 2 lần gọi API 2 lần.
     private boolean isLoggingOut = false;
+    // R5-019 FIX: garde supplémentaire pour empêcher finishLogout() de tourner
+    // 2x si l'API logout timeout APRÈS que onResponse a déjà finish() l'activity.
+    // Cas observé: réseau lent → onFailure(timeout) fire 10s plus tard, alors
+    // que l'user a déjà re-login → session.clear() écrasait la nouvelle session.
+    private volatile boolean isLoggedOut = false;
+    // R5-019: référence à l'appel en cours pour pouvoir le cancel dans onPause()
+    private retrofit2.Call<ApiResponse<Void>> logoutCall;
 
     private void logout() {
         if (isLoggingOut) return;

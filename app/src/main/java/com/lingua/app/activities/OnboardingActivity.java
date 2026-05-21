@@ -64,6 +64,14 @@ public class OnboardingActivity extends AppCompatActivity {
     public String selectedLevel = "N5";
     public int selectedDailyGoal = 50;
 
+    // R5-021 FIX: persist onboarding progress across process death.
+    // Sans ces clés Bundle/Prefs, si l'OS tuait l'app au step 3/4 (langue+level
+    // déjà choisis), l'user revenait au step 1 et perdait ses choix.
+    private static final String STATE_PAGE  = "ob_page";
+    private static final String STATE_LANG  = "ob_lang";
+    private static final String STATE_LEVEL = "ob_level";
+    private static final String STATE_GOAL  = "ob_goal";
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -84,8 +92,45 @@ public class OnboardingActivity extends AppCompatActivity {
             @Override public void onPageSelected(int position) {
                 super.onPageSelected(position);
                 updatePageIndicator(position);
+                // R5-021: persist last visible page in SharedPreferences
+                // (Bundle savedInstanceState ne survit pas à process-death).
+                getSharedPreferences(PREFS, MODE_PRIVATE).edit()
+                        .putInt(STATE_PAGE, position).apply();
             }
         });
+
+        // R5-021: restore onboarding state — d'abord depuis savedInstanceState
+        // (rotation), puis depuis SharedPreferences (process-death fallback).
+        if (savedInstanceState != null) {
+            if (savedInstanceState.containsKey(STATE_LANG))  selectedLanguage  = savedInstanceState.getString(STATE_LANG, selectedLanguage);
+            if (savedInstanceState.containsKey(STATE_LEVEL)) selectedLevel     = savedInstanceState.getString(STATE_LEVEL, selectedLevel);
+            if (savedInstanceState.containsKey(STATE_GOAL))  selectedDailyGoal = savedInstanceState.getInt(STATE_GOAL, selectedDailyGoal);
+            int page = savedInstanceState.getInt(STATE_PAGE, 0);
+            if (page > 0 && page < pager.getAdapter().getItemCount()) pager.setCurrentItem(page, false);
+        } else {
+            android.content.SharedPreferences sp = getSharedPreferences(PREFS, MODE_PRIVATE);
+            selectedLanguage  = sp.getString(STATE_LANG, selectedLanguage);
+            selectedLevel     = sp.getString(STATE_LEVEL, selectedLevel);
+            selectedDailyGoal = sp.getInt(STATE_GOAL, selectedDailyGoal);
+            int page = sp.getInt(STATE_PAGE, 0);
+            if (page > 0 && page < pager.getAdapter().getItemCount()) pager.setCurrentItem(page, false);
+        }
+    }
+
+    /** R5-021 FIX: persist progress across config-changes (rotation, dark-mode). */
+    @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
+        if (pager != null) outState.putInt(STATE_PAGE, pager.getCurrentItem());
+        outState.putString(STATE_LANG, selectedLanguage);
+        outState.putString(STATE_LEVEL, selectedLevel);
+        outState.putInt(STATE_GOAL, selectedDailyGoal);
+        // mirror in prefs for process-death case
+        getSharedPreferences(PREFS, MODE_PRIVATE).edit()
+                .putString(STATE_LANG, selectedLanguage)
+                .putString(STATE_LEVEL, selectedLevel)
+                .putInt(STATE_GOAL, selectedDailyGoal)
+                .apply();
     }
 
     private void setupPageIndicator(int count) {
@@ -176,6 +221,11 @@ public class OnboardingActivity extends AppCompatActivity {
                 .putString(KEY_TARGET_LANG, selectedLanguage)
                 .putString(KEY_TARGET_LEVEL, selectedLevel)
                 .putInt(KEY_DAILY_GOAL, selectedDailyGoal)
+                // R5-021: clean transient resume keys once onboarding is done.
+                .remove(STATE_PAGE)
+                .remove(STATE_LANG)
+                .remove(STATE_LEVEL)
+                .remove(STATE_GOAL)
                 .apply();
 
         // UX-5 FIX: queue ca hai request vao pending list truoc khi gui.

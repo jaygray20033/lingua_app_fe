@@ -73,13 +73,27 @@ public class ApiClient {
 
         // R4-H2 FIX: TokenAuthenticator pass application context, không phải
         // Activity context.
+        // R5-032 FIX: sane timeouts cho mạng yếu (3G/Edge / vùng có latence cao).
+        //   - connectTimeout 15s : nếu không kết nối được sau 15s thì server down.
+        //     30s trước đây làm app freeze UI quá lâu khi mất mạng.
+        //   - readTimeout 30s : assez généreux pour SSE roleplay (chunk-by-chunk)
+        //     mais évite de bloquer le pool de connections sur des sockets morts.
+        //   - writeTimeout 30s : pour upload avatar (max 2MB / base64 ~2.7MB).
+        //   - callTimeout 90s : budget global par requête. Au-delà, on coupe net
+        //     pour libérer le thread. SSE roleplay = endpoint streaming long ;
+        //     pour ces calls, l'Activity overrides callTimeout via tag/header
+        //     côté Retrofit (cf. AIRoleplayActivity).
+        //   - retryOnConnectionFailure(true) : par défaut OkHttp retry, on garde.
+        //     Combiné avec TokenAuthenticator, un 401 transient ne kill pas la session.
         OkHttpClient client = new OkHttpClient.Builder()
                 .addInterceptor(authInterceptor)
                 .addInterceptor(logging)
                 .authenticator(new TokenAuthenticator(ctx))
-                .connectTimeout(30, TimeUnit.SECONDS)
-                .readTimeout(60, TimeUnit.SECONDS)
+                .connectTimeout(15, TimeUnit.SECONDS)
+                .readTimeout(30, TimeUnit.SECONDS)
                 .writeTimeout(30, TimeUnit.SECONDS)
+                .callTimeout(90, TimeUnit.SECONDS)
+                .retryOnConnectionFailure(true)
                 .build();
 
         return new Retrofit.Builder()

@@ -48,6 +48,20 @@ public class QuestAdapter extends RecyclerView.Adapter<QuestAdapter.VH> {
         h.progressQuest.setProgress(Math.min(q.progress, max));
         h.tvProgress.setText(q.progress + " / " + q.target);
 
+        // R5-028 FIX: contentDescription cho TalkBack — progress bar et bouton
+        // claim devaient être audibles pour les utilisateurs malvoyants.
+        // Avant, TalkBack lisait juste "ProgressBar 60%" sans contexte.
+        h.progressQuest.setContentDescription(
+                "Tiến độ nhiệm vụ: " + q.progress + " trên " + q.target
+        );
+        h.btnClaim.setContentDescription(
+                q.claimedAt != null
+                        ? "Đã nhận thưởng " + q.rewardGems + " gems cho nhiệm vụ này"
+                        : (q.completed == 1
+                            ? "Nhận " + q.rewardGems + " gems cho nhiệm vụ đã hoàn thành"
+                            : "Nhiệm vụ chưa hoàn thành")
+        );
+
         // 6.11 FIX: btnClaim chỉ visible khi có thể click (quest đã complete &
         // chưa claim). Trước đây nút luôn visible với 3 state (đã nhận / nhận
         // thưởng / đang làm). State "Đang làm" → ẩn nút hoàn toàn cho gọn UI.

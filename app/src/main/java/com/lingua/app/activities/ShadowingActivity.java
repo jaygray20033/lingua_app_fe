@@ -311,7 +311,33 @@ public class ShadowingActivity extends AppCompatActivity implements TextToSpeech
             return;
         }
 
-        recordingFilePath = getExternalCacheDir() + "/shadowing_" + System.currentTimeMillis() + ".3gp";
+        // R5-018 FIX: nettoyer l'enregistrement précédent avant d'en créer un nouveau.
+        // Avant: chaque appel à startRecording() créait un .3gp avec timestamp
+        // unique dans cacheDir sans jamais effacer les anciens. Après ~200 prises,
+        // le cache se remplissait et MediaRecorder.prepare() lançait IOException
+        // (disk full). On utilise maintenant un nom de fichier FIXE qui est
+        // écrasé à chaque enregistrement; en plus on supprime explicitement
+        // l'ancien si présent.
+        java.io.File cacheDir = getExternalCacheDir();
+        if (cacheDir != null) {
+            // Nettoyage défensif: supprime aussi tout vieux fichier "shadowing_*.3gp"
+            // laissé par d'anciennes versions de l'app.
+            java.io.File[] old = cacheDir.listFiles(
+                (dir, name) -> name.startsWith("shadowing_") && name.endsWith(".3gp")
+            );
+            if (old != null) {
+                for (java.io.File f : old) {
+                    try { f.delete(); } catch (Exception ignore) {}
+                }
+            }
+        }
+        recordingFilePath = (cacheDir != null ? cacheDir.getAbsolutePath() : getCacheDir().getAbsolutePath())
+                + "/shadowing_current.3gp";
+        // Supprime le précédent fichier "shadowing_current.3gp" si présent
+        java.io.File oldFile = new java.io.File(recordingFilePath);
+        if (oldFile.exists()) {
+            try { oldFile.delete(); } catch (Exception ignore) {}
+        }
 
         mediaRecorder = new MediaRecorder();
         mediaRecorder.setAudioSource(MediaRecorder.AudioSource.MIC);

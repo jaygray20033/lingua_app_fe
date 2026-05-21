@@ -35,6 +35,10 @@ public class AIRoleplayActivity extends AppCompatActivity implements TextToSpeec
     private EditText etMessage;
     private ImageButton btnSend, btnMic;
     private Button btnStartSession;
+    // R5-016 FIX: garde anti-spam. Avant, double/triple tap sur btnSend
+    // empilait N appels SSE + N bulles AI vides (placeholder "..."). Maintenant
+    // on bloque jusqu'à ce que la réponse soit complète ou que la SSE échoue.
+    private volatile boolean isSending = false;
     private Spinner spinnerLanguage, spinnerScenario;
     private TextView tvStatus, tvScenarioDesc;
     private ProgressBar progressBar;
@@ -357,8 +361,16 @@ public class AIRoleplayActivity extends AppCompatActivity implements TextToSpeec
     }
 
     private void sendMessage() {
+        // R5-016 FIX: idempotency guard. Si une réponse AI est encore en cours
+        // (SSE pas terminé), on ignore le tap. Sinon l'user pouvait spammer le
+        // bouton → 10 bulles AI "..." + 10 connections SSE simultanées.
+        if (isSending) return;
+
         String text = etMessage.getText().toString().trim();
         if (text.isEmpty() || sessionId == -1) return;
+
+        isSending = true;
+        if (btnSend != null) btnSend.setEnabled(false);
 
         addMessage("USER", text);
         etMessage.setText("");
@@ -367,6 +379,15 @@ public class AIRoleplayActivity extends AppCompatActivity implements TextToSpeec
 
         // Use SSE via OkHttp for streaming
         streamAIResponse(text);
+    }
+
+    /** R5-016 helper: ré-active l'envoi quand la réponse AI est terminée
+     *  (succès ou échec). Appelée depuis onEvent(done=true) et onFailure(). */
+    private void resetSendingState() {
+        isSending = false;
+        runOnUiThread(() -> {
+            if (btnSend != null) btnSend.setEnabled(true);
+        });
     }
 
     private void streamAIResponse(String userMessage) {
@@ -426,6 +447,8 @@ public class AIRoleplayActivity extends AppCompatActivity implements TextToSpeec
                         runOnUiThread(() -> updateLastMessage(aiResponse.toString()));
                     }
                     if (json.has("done") && json.getBoolean("done")) {
+                        // R5-016 FIX: réactive btnSend dès que la SSE est complète.
+                        resetSendingState();
                         String fullText = aiResponse.toString();
                         runOnUiThread(() -> {
                             // U7 FIX: French → Vietnamese.
@@ -438,6 +461,8 @@ public class AIRoleplayActivity extends AppCompatActivity implements TextToSpeec
 
             @Override
             public void onFailure(EventSource eventSource, Throwable t, okhttp3.Response response) {
+                // R5-016 FIX: réactive btnSend en cas d'échec SSE pour permettre un retry.
+                resetSendingState();
                 runOnUiThread(() -> {
                     if (aiResponse.length() == 0) {
                         // U7 FIX: French → Vietnamese.
