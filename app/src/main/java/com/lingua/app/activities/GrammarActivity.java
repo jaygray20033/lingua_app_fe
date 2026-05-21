@@ -145,6 +145,10 @@ public class GrammarActivity extends AppCompatActivity {
                     @Override public void onFailure(Call<ApiResponse<List<Grammar>>> c, Throwable t) {
                         progressBar.setVisibility(View.GONE);
                         tvEmpty.setVisibility(View.VISIBLE);
+                        // FIX 2.5: show user-friendly error instead of blank screen
+                        if (tvEmpty != null) {
+                            tvEmpty.setText("⚠️ Không tải được ngữ pháp. Hãy thử lại sau.");
+                        }
                     }
                 });
     }

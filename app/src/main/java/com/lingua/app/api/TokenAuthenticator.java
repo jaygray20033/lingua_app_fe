@@ -153,6 +153,17 @@ public class TokenAuthenticator implements Authenticator {
                                 .header("Authorization", "Bearer " + data.accessToken)
                                 .build();
                     }
+                } else {
+                    // FIX 2.5: Handle expired refresh token (server returns 401/403).
+                    // This means the refresh token itself is invalid/expired —
+                    // no point retrying, redirect to login immediately.
+                    int code = refreshResp.code();
+                    Log.w(TAG, "Refresh token request failed with HTTP " + code);
+                    if (code == 401 || code == 403) {
+                        Log.w(TAG, "Refresh token expired/revoked → redirectToLogin immediately");
+                        redirectToLogin();
+                        return null;
+                    }
                 }
             }
         } catch (Exception e) {

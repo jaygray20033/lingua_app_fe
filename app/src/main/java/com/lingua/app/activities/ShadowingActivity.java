@@ -223,8 +223,9 @@ public class ShadowingActivity extends AppCompatActivity implements TextToSpeech
         if (index < 0 || index >= contents.size()) return;
         currentContentIndex = index;
         ExampleSentence ex = contents.get(index);
-        String langCode = ex.languageCode != null ? ex.languageCode : "ja";
-        String level = ex.level != null ? ex.level : "";
+        // FIX: use getter methods that check both field names (languageCode / langCode / levelCode)
+        String langCode = ex.getLanguageCode();
+        String level = ex.getLevel();
         String title = ex.title != null ? ex.title : ("Bài " + (index + 1));
         if (tvTitle != null) {
             // 6.16 FIX: thêm counter "x/y" để user biết tiến độ trong session
@@ -261,11 +262,24 @@ public class ShadowingActivity extends AppCompatActivity implements TextToSpeech
         if (contents.isEmpty()) return;
         ExampleSentence ex = contents.get(currentContentIndex);
 
-        if (ex.audioUrl != null && !ex.audioUrl.isEmpty()) {
+        // FIX 2.1: Guard null/empty audioUrl BEFORE calling setDataSource
+        // to prevent MediaPlayer crash (IllegalArgumentException / NullPointerException).
+        if (ex.audioUrl != null && !ex.audioUrl.isEmpty()
+                && (ex.audioUrl.startsWith("http://") || ex.audioUrl.startsWith("https://"))) {
             try {
-                if (mediaPlayer != null) { mediaPlayer.release(); }
+                if (mediaPlayer != null) {
+                    try { mediaPlayer.release(); } catch (Exception ignore) {}
+                }
                 mediaPlayer = new MediaPlayer();
                 mediaPlayer.setDataSource(ex.audioUrl);
+                mediaPlayer.setOnErrorListener((mp, what, extra) -> {
+                    // FIX 2.1: On MediaPlayer error, fall back to TTS instead of crashing.
+                    runOnUiThread(() -> {
+                        tvStatus.setText("⚠️ Lỗi audio, dùng TTS thay thế...");
+                        fallbackToTts(ex);
+                    });
+                    return true; // error handled
+                });
                 mediaPlayer.prepareAsync();
                 mediaPlayer.setOnPreparedListener(mp -> {
                     mp.start();
@@ -273,14 +287,22 @@ public class ShadowingActivity extends AppCompatActivity implements TextToSpeech
                 });
                 mediaPlayer.setOnCompletionListener(mp -> tvStatus.setText("Đã phát xong. Hãy ghi âm theo!"));
                 return;
-            } catch (Exception e) { /* fall through to TTS */ }
+            } catch (Exception e) {
+                // FIX 2.1: catch any exception from setDataSource/prepareAsync
+                // and fall through to TTS gracefully.
+            }
         }
 
+        fallbackToTts(ex);
+    }
+
+    /** FIX 2.1: extracted TTS fallback to avoid code duplication. */
+    private void fallbackToTts(ExampleSentence ex) {
         if (tts == null) return;
-        Locale locale = bcpToLocale(ex.languageCode);
+        Locale locale = bcpToLocale(ex.getLanguageCode());
         tts.setLanguage(locale);
         tts.speak(ex.getSentence(), TextToSpeech.QUEUE_FLUSH, null, "shadowing");
-        tvStatus.setText("🔊 Đang nghe...");
+        tvStatus.setText("🔊 Đang nghe (TTS)...");
     }
 
     private Locale bcpToLocale(String langCode) {
@@ -391,7 +413,8 @@ public class ShadowingActivity extends AppCompatActivity implements TextToSpeech
         Intent recognizerIntent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
 
         ExampleSentence ex = contents.get(currentContentIndex);
-        String langCode = ex.languageCode != null ? ex.languageCode : "ja";
+        // FIX: use getter method
+        String langCode = ex.getLanguageCode();
         String langBcp;
         switch (langCode) {
             case "en": langBcp = "en-US"; break;

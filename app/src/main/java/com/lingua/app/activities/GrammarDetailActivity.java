@@ -165,9 +165,24 @@ public class GrammarDetailActivity extends AppCompatActivity {
     }
 
     private void playUrl(String url) {
+        // FIX 2.5: Guard null/empty/invalid URL to prevent MediaPlayer crash.
+        if (url == null || url.trim().isEmpty()) {
+            Toast.makeText(this, "Không có audio cho mục này", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (!url.startsWith("http://") && !url.startsWith("https://")) {
+            Toast.makeText(this, "URL audio không hợp lệ", Toast.LENGTH_SHORT).show();
+            return;
+        }
         try {
-            if (mediaPlayer != null) mediaPlayer.release();
+            if (mediaPlayer != null) {
+                try { mediaPlayer.release(); } catch (Exception ignore) {}
+            }
             mediaPlayer = new MediaPlayer();
+            mediaPlayer.setOnErrorListener((mp, what, extra) -> {
+                Toast.makeText(this, "Lỗi khi phát audio", Toast.LENGTH_SHORT).show();
+                return true;
+            });
             mediaPlayer.setDataSource(url);
             mediaPlayer.prepareAsync();
             mediaPlayer.setOnPreparedListener(MediaPlayer::start);

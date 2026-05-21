@@ -98,6 +98,17 @@ public class SplashActivity extends AppCompatActivity {
         super.onDestroy();
     }
 
+    /**
+     * FIX 2.5: Improved routing logic:
+     *   1. If not logged in → Login.
+     *   2. If logged in but token looks invalid (empty) → Login (clear stale session).
+     *   3. If logged in but not onboarded → Onboarding (show only first time).
+     *   4. If logged in + onboarded → MainActivity (Dashboard).
+     *
+     * Token validation: we only check locally if the token exists and is non-empty.
+     * Full server-side validation happens when the first API call returns 401,
+     * which triggers TokenAuthenticator to refresh or redirect to login.
+     */
     private void route() {
         SessionManager session = SessionManager.getInstance(this);
         SharedPreferences prefs = getSharedPreferences(OnboardingActivity.PREFS, MODE_PRIVATE);
@@ -106,10 +117,18 @@ public class SplashActivity extends AppCompatActivity {
         Intent intent;
         if (!session.isLoggedIn()) {
             intent = new Intent(this, LoginActivity.class);
-        } else if (!onboarded) {
-            intent = new Intent(this, OnboardingActivity.class);
         } else {
-            intent = new Intent(this, MainActivity.class);
+            // FIX 2.5: check that the access token is not empty/null.
+            // If it is, the session is stale and user should re-login.
+            String token = session.getAccessToken();
+            if (token == null || token.trim().isEmpty()) {
+                session.clear();
+                intent = new Intent(this, LoginActivity.class);
+            } else if (!onboarded) {
+                intent = new Intent(this, OnboardingActivity.class);
+            } else {
+                intent = new Intent(this, MainActivity.class);
+            }
         }
         startActivity(intent);
         finish();

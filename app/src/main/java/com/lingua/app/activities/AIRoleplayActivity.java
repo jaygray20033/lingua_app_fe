@@ -292,10 +292,17 @@ public class AIRoleplayActivity extends AppCompatActivity implements TextToSpeec
         progressBar.setVisibility(View.VISIBLE);
         // BUG-013 FIX: disable nút "Bắt đầu phiên" trong khi request đang inflight
         // để tránh user spam tap → nhiều session được tạo song song.
+        // FIX 2.2: only send scenarioId if user selected one (not free-chat).
         Map<String, Object> body = new HashMap<>();
         body.put("language", selectedLanguage);
         body.put("type", "ROLEPLAY");
-        if (selectedScenarioId != null) body.put("scenarioId", Integer.parseInt(selectedScenarioId));
+        if (selectedScenarioId != null && !selectedScenarioId.isEmpty()) {
+            try {
+                body.put("scenarioId", Integer.parseInt(selectedScenarioId));
+            } catch (NumberFormatException e) {
+                // Invalid scenarioId — proceed without it (free-chat mode)
+            }
+        }
 
         apiService.startSession(body).enqueue(new Callback<ApiResponse<AISession>>() {
             @Override
@@ -627,10 +634,21 @@ public class AIRoleplayActivity extends AppCompatActivity implements TextToSpeec
 
     @Override
     protected void onDestroy() {
-        if (tts != null) { tts.stop(); tts.shutdown(); }
-        if (speechRecognizer != null) { speechRecognizer.destroy(); }
-        // BUG #8 FIX: cancel SSE connection để tránh memory leak + crash khi
-        // streaming response trả về sau khi Activity đã destroy.
+        // FIX 2.2: release TTS safely with null-check & try-catch
+        if (tts != null) {
+            try { tts.stop(); } catch (Exception ignore) {}
+            try { tts.shutdown(); } catch (Exception ignore) {}
+            tts = null;
+        }
+        // FIX 2.2: release SpeechRecognizer safely
+        if (speechRecognizer != null) {
+            try { speechRecognizer.cancel(); } catch (Exception ignore) {}
+            try { speechRecognizer.destroy(); } catch (Exception ignore) {}
+            speechRecognizer = null;
+        }
+        // BUG #8 FIX + FIX 2.2: cancel SSE connection to prevent memory leak + crash
+        // when streaming response arrives after Activity is destroyed.
+        // MUST cancel EventSource BEFORE shutting down the client.
         if (activeEventSource != null) {
             try { activeEventSource.cancel(); } catch (Exception ignore) {}
             activeEventSource = null;
@@ -643,6 +661,8 @@ public class AIRoleplayActivity extends AppCompatActivity implements TextToSpeec
             } catch (Exception ignore) {}
             activeSseClient = null;
         }
+        // FIX 2.2: reset sending state to avoid stale lock
+        isSending = false;
         super.onDestroy();
     }
 

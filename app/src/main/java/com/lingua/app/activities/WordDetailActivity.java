@@ -249,9 +249,24 @@ public class WordDetailActivity extends AppCompatActivity implements TextToSpeec
     }
 
     private void playUrl(String url) {
+        // FIX 2.5: Guard null/empty/invalid URL to prevent MediaPlayer crash.
+        if (url == null || url.trim().isEmpty()) {
+            Toast.makeText(this, "Không có audio cho mục này", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (!url.startsWith("http://") && !url.startsWith("https://")) {
+            Toast.makeText(this, "URL audio không hợp lệ", Toast.LENGTH_SHORT).show();
+            return;
+        }
         try {
-            if (mediaPlayer != null) mediaPlayer.release();
+            if (mediaPlayer != null) {
+                try { mediaPlayer.release(); } catch (Exception ignore) {}
+            }
             mediaPlayer = new MediaPlayer();
+            mediaPlayer.setOnErrorListener((mp, what, extra) -> {
+                Toast.makeText(this, "Lỗi khi phát audio", Toast.LENGTH_SHORT).show();
+                return true; // error handled
+            });
             mediaPlayer.setDataSource(url);
             mediaPlayer.prepareAsync();
             mediaPlayer.setOnPreparedListener(MediaPlayer::start);
@@ -331,8 +346,16 @@ public class WordDetailActivity extends AppCompatActivity implements TextToSpeec
 
     @Override
     protected void onDestroy() {
-        if (tts != null) { tts.stop(); tts.shutdown(); }
-        if (mediaPlayer != null) { try { mediaPlayer.release(); } catch (Exception ignore) {} }
+        // FIX 2.5: safe release with try-catch to prevent crash on destroy
+        if (tts != null) {
+            try { tts.stop(); } catch (Exception ignore) {}
+            try { tts.shutdown(); } catch (Exception ignore) {}
+            tts = null;
+        }
+        if (mediaPlayer != null) {
+            try { mediaPlayer.release(); } catch (Exception ignore) {}
+            mediaPlayer = null;
+        }
         super.onDestroy();
     }
 }

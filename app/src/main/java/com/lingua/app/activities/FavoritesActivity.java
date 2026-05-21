@@ -125,17 +125,30 @@ public class FavoritesActivity extends AppCompatActivity {
             @Override public void onFailure(Call<ApiResponse<List<Favorite>>> c, Throwable t) {
                 progressBar.setVisibility(View.GONE);
                 setEmptyVisible(true); // BUG U5
+                // FIX 2.5: show a user-friendly error message when API fails
+                // (e.g. 500 from missing word_examples table)
+                if (tvEmpty != null) {
+                    tvEmpty.setText("⚠️ Không tải được danh sách. Hãy thử lại sau.");
+                }
             }
         });
     }
 
     private void removeFavorite(Favorite fav, int position) {
+        // FIX 2.5: Guard against out-of-bounds position (race condition when
+        // user long-presses while list is being refreshed).
+        if (position < 0 || position >= items.size()) return;
         apiService.removeFavorite(fav.type != null ? fav.type : currentType, fav.itemId)
                 .enqueue(new Callback<ApiResponse<Object>>() {
             @Override public void onResponse(Call<ApiResponse<Object>> c, Response<ApiResponse<Object>> r) {
                 if (r.isSuccessful() && r.body() != null && r.body().isSuccess()) {
-                    items.remove(position);
-                    adapter.notifyItemRemoved(position);
+                    // FIX 2.5: double-check bounds before remove
+                    if (position >= 0 && position < items.size()) {
+                        items.remove(position);
+                        adapter.notifyItemRemoved(position);
+                        // Notify range changed to fix positions after removal
+                        adapter.notifyItemRangeChanged(position, items.size() - position);
+                    }
                     setEmptyVisible(items.isEmpty()); // BUG U5
                 }
             }

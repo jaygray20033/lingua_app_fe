@@ -241,16 +241,15 @@ public class MainActivity extends AppCompatActivity {
         BottomNavigationView nav = findViewById(R.id.bottomNavigation);
         // 6.3 FIX: đảm bảo tab Home luôn được highlight khi quay về MainActivity.
         nav.setSelectedItemId(R.id.nav_home);
+        // FIX 2.4: Updated to 4 tabs: Trang chủ / Khóa học / Từ vựng / Cá nhân
         nav.setOnItemSelectedListener(item -> {
             int id = item.getItemId();
             if (id == R.id.nav_home) {
                 // Already home
+            } else if (id == R.id.nav_courses) {
+                navigateToTab(MyCoursesActivity.class);
             } else if (id == R.id.nav_vocabulary) {
                 navigateToTab(VocabularyActivity.class);
-            } else if (id == R.id.nav_flashcard) {
-                navigateToTab(SrsDeckPickerActivity.class);
-            } else if (id == R.id.nav_ai) {
-                navigateToTab(AIRoleplayActivity.class);
             } else if (id == R.id.nav_profile) {
                 navigateToTab(ProfileActivity.class);
             }
