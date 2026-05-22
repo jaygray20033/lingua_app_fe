@@ -1,14 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 2.3 Redesign: bo góc 16dp, màu brand tím, badge level màu sắc -->
 <androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_margin="4dp"
+    android:layout_marginHorizontal="4dp"
+    android:layout_marginVertical="5dp"
     android:foreground="?attr/selectableItemBackground"
     android:clickable="true"
     android:focusable="true"
-    app:cardCornerRadius="12dp"
-    app:cardElevation="2dp">
+    app:cardCornerRadius="16dp"
+    app:cardElevation="2dp"
+    app:cardBackgroundColor="@color/surface_elevated"
+    app:strokeColor="@color/card_border"
+    app:strokeWidth="1dp">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -28,36 +33,43 @@
                 android:layout_weight="1"
                 android:orientation="vertical">
 
+                <!-- Chữ chính (Kanji/từ) -->
                 <TextView android:id="@+id/tvWord"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:textSize="24sp"
+                    android:textSize="26sp"
                     android:textStyle="bold"
-                    android:textColor="@color/lingua_dark"/>
+                    android:textColor="@color/text_primary"/>
 
+                <!-- Furigana / reading — màu tím brand -->
                 <TextView android:id="@+id/tvReading"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:textSize="14sp"
-                    android:textColor="@color/lingua_blue"/>
+                    android:textSize="13sp"
+                    android:textColor="@color/brand_primary"/>
 
+                <!-- Nghĩa -->
                 <TextView android:id="@+id/tvMeaning"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:textSize="16sp"
-                    android:textColor="@color/lingua_dark"
+                    android:textSize="15sp"
+                    android:textColor="@color/text_secondary"
                     android:layout_marginTop="4dp"/>
             </LinearLayout>
 
+            <!-- Badge level (JLPT/HSK/CEFR) -->
             <TextView android:id="@+id/tvLevel"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:background="#E8F5E9"
-                android:textColor="@color/lingua_green"
-                android:textSize="12sp"
+                android:background="@drawable/bg_badge_level"
+                android:textColor="@color/brand_primary"
+                android:textSize="11sp"
                 android:textStyle="bold"
-                android:padding="6dp"
-                android:layout_marginEnd="6dp"/>
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp"
+                android:layout_marginEnd="8dp"/>
 
             <ImageButton android:id="@+id/btnFavorite"
                 android:layout_width="36dp"
@@ -72,8 +84,8 @@
                 android:layout_height="40dp"
                 android:src="@android:drawable/ic_btn_speak_now"
                 android:background="@android:color/transparent"
-                android:tint="@color/lingua_blue"
-                android:contentDescription="Prononcer"/>
+                android:tint="@color/brand_primary"
+                android:contentDescription="Phát âm"/>
         </LinearLayout>
 
         <!-- Collapsible Example -->
@@ -81,23 +93,23 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:background="#F5F5F5"
+            android:background="@color/surface_background"
             android:padding="12dp"
-            android:layout_marginTop="8dp"
+            android:layout_marginTop="10dp"
             android:visibility="gone">
 
             <TextView android:id="@+id/tvExample"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:textSize="14sp"
-                android:textColor="@color/lingua_dark"
+                android:textColor="@color/text_primary"
                 android:fontFamily="serif"/>
 
             <TextView android:id="@+id/tvExampleTrans"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:textSize="13sp"
-                android:textColor="@color/lingua_gray"
+                android:textColor="@color/text_secondary"
                 android:layout_marginTop="4dp"/>
         </LinearLayout>
     </LinearLayout>

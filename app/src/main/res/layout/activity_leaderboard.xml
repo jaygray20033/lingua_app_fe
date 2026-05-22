@@ -4,39 +4,55 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="@color/lingua_light">
+    android:background="@color/surface_background">
 
-    <TextView
+    <!-- Toolbar trắng -->
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="🏆 Bảng xếp hạng"
-        android:textSize="22sp"
-        android:textStyle="bold"
-        android:textColor="@color/lingua_dark"
-        android:padding="16dp"
-        android:background="@color/white"
-        android:elevation="4dp"/>
+        android:background="@color/surface_elevated"
+        android:elevation="4dp"
+        android:orientation="vertical">
 
-    <com.google.android.material.tabs.TabLayout
-        android:id="@+id/tabPeriod"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:background="@android:color/white"
-        app:tabMode="fixed"
-        app:tabGravity="fill"
-        app:tabIndicatorColor="@color/lingua_green"
-        app:tabSelectedTextColor="@color/lingua_green"
-        app:tabTextColor="@color/lingua_gray"/>
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="🏆 Bảng xếp hạng"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:textColor="@color/text_primary"
+            android:paddingStart="20dp"
+            android:paddingEnd="20dp"
+            android:paddingTop="16dp"
+            android:paddingBottom="4dp"/>
+
+        <com.google.android.material.tabs.TabLayout
+            android:id="@+id/tabPeriod"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@color/surface_elevated"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:paddingBottom="12dp"
+            android:paddingTop="8dp"
+            app:tabMode="fixed"
+            app:tabGravity="fill"
+            app:tabIndicatorColor="@color/brand_primary"
+            app:tabSelectedTextColor="@color/brand_primary"
+            app:tabTextColor="@color/text_label"
+            app:tabIndicatorHeight="3dp"/>
+    </LinearLayout>
 
     <TextView
         android:id="@+id/tvMyRank"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:padding="12dp"
-        android:layout_margin="8dp"
-        android:background="@color/white"
+        android:padding="14dp"
+        android:layout_margin="10dp"
+        android:background="@color/row_highlight_me"
         android:textSize="14sp"
-        android:textColor="@color/lingua_dark"
+        android:textColor="@color/row_highlight_text"
+        android:textStyle="bold"
         android:visibility="gone"
         android:text=""/>
 
@@ -52,6 +68,6 @@
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:padding="6dp"
+        android:padding="8dp"
         app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"/>
 </LinearLayout>

@@ -1,20 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 2.3 Redesign: Simple List — surface_background, card toolbar, brand colors -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="@color/lingua_light">
+    android:background="@color/surface_background">
 
     <TextView android:id="@+id/tvTitle"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:textSize="22sp"
         android:textStyle="bold"
-        android:textColor="@color/lingua_dark"
+        android:textColor="@color/text_primary"
         android:padding="16dp"
-        android:background="@color/white"
-        android:elevation="4dp"/>
+        android:background="@color/surface_elevated"
+        android:elevation="2dp"/>
 
     <ProgressBar android:id="@+id/progressBar"
         android:layout_width="wrap_content"
@@ -30,13 +31,14 @@
         android:gravity="center"
         android:padding="32dp"
         android:visibility="gone"
-        android:textColor="@color/lingua_gray"/>
+        android:textColor="@color/text_secondary"/>
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/recyclerView"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:padding="6dp"
+        android:padding="8dp"
+        android:clipToPadding="false"
         app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"/>
 </LinearLayout>

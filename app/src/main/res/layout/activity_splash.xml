@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 2.3 Redesign: Splash — gradient tím→hồng -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:gravity="center"
-    android:background="@color/lingua_green">
+    android:background="@drawable/bg_gradient_header">
 
     <TextView
         android:layout_width="wrap_content"
@@ -27,12 +28,12 @@
         android:text="Học ngoại ngữ thông minh"
         android:textSize="18sp"
         android:textColor="@color/white"
-        android:alpha="0.8"
+        android:alpha="0.85"
         android:layout_marginTop="8dp"/>
 
     <ProgressBar
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="40dp"
+        android:layout_marginTop="48dp"
         android:indeterminateTint="@color/white"/>
 </LinearLayout>

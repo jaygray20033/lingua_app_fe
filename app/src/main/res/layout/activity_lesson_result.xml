@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 2.3 Redesign: Lesson Result — surface_background, brand card 16dp -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
@@ -6,7 +7,7 @@
     android:orientation="vertical"
     android:gravity="center"
     android:padding="24dp"
-    android:background="@color/lingua_light">
+    android:background="@color/surface_background">
 
     <TextView android:id="@+id/celebrate"
         android:layout_width="wrap_content"
@@ -21,14 +22,17 @@
         android:text="Hoàn thành bài học!"
         android:textSize="26sp"
         android:textStyle="bold"
-        android:textColor="@color/lingua_green"
+        android:textColor="@color/brand_primary"
         android:layout_marginBottom="24dp"/>
 
     <androidx.cardview.widget.CardView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         app:cardCornerRadius="16dp"
-        app:cardElevation="6dp">
+        app:cardElevation="4dp"
+        app:cardBackgroundColor="@color/surface_elevated"
+        app:strokeColor="@color/card_border"
+        app:strokeWidth="1dp">
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -39,14 +43,14 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
-                android:layout_marginBottom="12dp">
+                android:layout_marginBottom="14dp">
                 <TextView
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:text="⚡ XP nhận được"
                     android:textSize="16sp"
-                    android:textColor="@color/lingua_dark"/>
+                    android:textColor="@color/text_primary"/>
                 <TextView android:id="@+id/tvXp"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
@@ -55,38 +59,50 @@
                     android:textColor="@color/lingua_orange"/>
             </LinearLayout>
 
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="@color/divider_line"
+                android:layout_marginBottom="14dp"/>
+
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
-                android:layout_marginBottom="12dp">
+                android:layout_marginBottom="14dp">
                 <TextView
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:text="🎯 Độ chính xác"
                     android:textSize="16sp"
-                    android:textColor="@color/lingua_dark"/>
+                    android:textColor="@color/text_primary"/>
                 <TextView android:id="@+id/tvAccuracy"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:textSize="20sp"
                     android:textStyle="bold"
-                    android:textColor="@color/lingua_blue"/>
+                    android:textColor="@color/brand_primary"/>
             </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="@color/divider_line"
+                android:layout_marginBottom="14dp"/>
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
-                android:layout_marginBottom="12dp">
+                android:layout_marginBottom="14dp">
                 <TextView
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:text="✅ Đúng / Tổng"
                     android:textSize="16sp"
-                    android:textColor="@color/lingua_dark"/>
+                    android:textColor="@color/text_primary"/>
                 <TextView android:id="@+id/tvCorrect"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
@@ -94,6 +110,12 @@
                     android:textStyle="bold"
                     android:textColor="@color/lingua_green"/>
             </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="@color/divider_line"
+                android:layout_marginBottom="14dp"/>
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -105,7 +127,7 @@
                     android:layout_weight="1"
                     android:text="🔥 Streak"
                     android:textSize="16sp"
-                    android:textColor="@color/lingua_dark"/>
+                    android:textColor="@color/text_primary"/>
                 <TextView android:id="@+id/tvStreak"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
@@ -118,10 +140,11 @@
 
     <Button android:id="@+id/btnDone"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="52dp"
         android:layout_marginTop="24dp"
         android:text="HOÀN TẤT"
-        android:backgroundTint="@color/lingua_green"
+        android:backgroundTint="@color/brand_primary"
         android:textColor="@color/white"
-        android:textStyle="bold"/>
+        android:textStyle="bold"
+        android:textSize="16sp"/>
 </LinearLayout>

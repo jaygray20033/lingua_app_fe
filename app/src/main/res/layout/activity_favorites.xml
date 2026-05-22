@@ -1,21 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 2.3 Redesign: Favorites — tab tím, surface_background, bo 16dp -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="@color/lingua_light">
+    android:background="@color/surface_background">
 
     <com.google.android.material.tabs.TabLayout
         android:id="@+id/tabs"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="@color/white"
+        android:background="@color/surface_elevated"
+        android:elevation="2dp"
         app:tabMode="fixed"
         app:tabGravity="fill"
-        app:tabIndicatorColor="@color/lingua_red"
-        app:tabSelectedTextColor="@color/lingua_red"
-        app:tabTextColor="@color/lingua_gray"/>
+        app:tabIndicatorColor="@color/brand_primary"
+        app:tabIndicatorHeight="3dp"
+        app:tabSelectedTextColor="@color/brand_primary"
+        app:tabTextColor="@color/text_secondary"/>
 
     <ProgressBar android:id="@+id/progressBar"
         android:layout_width="wrap_content"
@@ -23,8 +26,7 @@
         android:layout_gravity="center"
         android:visibility="gone"/>
 
-    <!-- BUG U5 FIX : empty state avec un CTA — "Khám phá từ vựng / ngữ pháp"
-         pour rediriger l'utilisateur vers la liste de vocabulaire/grammaire. -->
+    <!-- Empty state -->
     <LinearLayout android:id="@+id/layoutEmpty"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -33,13 +35,20 @@
         android:padding="32dp"
         android:visibility="gone">
 
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="⭐"
+            android:textSize="56sp"
+            android:layout_marginBottom="16dp"/>
+
         <TextView android:id="@+id/tvEmpty"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:gravity="center"
-            android:textSize="16sp"
-            android:textColor="@color/lingua_gray"
-            android:text="Chưa có mục yêu thích nào.\nNhấn 🔖 trên từ vựng/ngữ pháp để thêm."/>
+            android:textSize="15sp"
+            android:textColor="@color/text_secondary"
+            android:text="Chưa có mục yêu thích nào.\nHãy dùng nút ☆ ở các trang từ vựng/kanji/ngữ pháp."/>
 
         <Button android:id="@+id/btnExploreEmpty"
             android:layout_width="wrap_content"
@@ -47,7 +56,7 @@
             android:layout_marginTop="20dp"
             android:text="📚 Khám phá từ vựng"
             android:textColor="@color/white"
-            android:backgroundTint="@color/lingua_red"
+            android:backgroundTint="@color/brand_primary"
             android:paddingStart="24dp"
             android:paddingEnd="24dp"/>
     </LinearLayout>
@@ -57,6 +66,7 @@
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:padding="6dp"
+        android:padding="8dp"
+        android:clipToPadding="false"
         app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"/>
 </LinearLayout>

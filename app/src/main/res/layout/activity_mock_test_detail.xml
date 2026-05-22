@@ -1,17 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 2.3 Redesign: Mock Test Detail — surface_background, brand header, cards 16dp -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="@color/lingua_light">
+    android:background="@color/surface_background">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:padding="12dp"
-        android:background="@color/lingua_orange">
+        android:padding="14dp"
+        android:background="@drawable/bg_gradient_header">
         <TextView android:id="@+id/tvProgress"
             android:layout_width="0dp"
             android:layout_weight="1"
@@ -33,7 +34,8 @@
         android:layout_height="6dp"
         android:max="100"
         android:progress="0"
-        android:progressTint="@color/lingua_orange"/>
+        android:progressTint="@color/brand_primary"
+        android:progressBackgroundTint="@color/card_border"/>
 
     <ScrollView
         android:layout_width="match_parent"
@@ -50,19 +52,25 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="🔊 Nghe"
-                android:backgroundTint="@color/lingua_blue"
+                android:backgroundTint="@color/brand_primary"
                 android:textColor="@color/white"
                 android:visibility="gone"
                 android:layout_marginBottom="8dp"/>
 
-            <TextView android:id="@+id/tvQuestion"
+            <androidx.cardview.widget.CardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:textSize="17sp"
-                android:textColor="@color/lingua_dark"
-                android:background="@color/white"
-                android:padding="14dp"
-                android:layout_marginBottom="12dp"/>
+                android:layout_marginBottom="12dp"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="2dp"
+                app:cardBackgroundColor="@color/surface_elevated">
+                <TextView android:id="@+id/tvQuestion"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textSize="17sp"
+                    android:textColor="@color/text_primary"
+                    android:padding="16dp"/>
+            </androidx.cardview.widget.CardView>
 
             <LinearLayout android:id="@+id/layoutOptions"
                 android:layout_width="match_parent"
@@ -73,8 +81,8 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:hint="Câu trả lời..."
-                android:padding="10dp"
-                android:background="@drawable/edit_text_bg"
+                android:padding="12dp"
+                android:background="@drawable/bg_search_bar"
                 android:visibility="gone"/>
         </LinearLayout>
     </ScrollView>
@@ -84,21 +92,22 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:padding="12dp"
-        android:background="@color/white">
+        android:background="@color/surface_elevated"
+        android:elevation="4dp">
         <Button android:id="@+id/btnPrev"
             android:layout_width="0dp"
             android:layout_weight="1"
             android:layout_height="wrap_content"
             android:text="◀ Trước"
-            android:backgroundTint="@color/lingua_gray"
-            android:textColor="@color/white"
+            android:backgroundTint="@color/card_border"
+            android:textColor="@color/text_primary"
             android:layout_marginEnd="6dp"/>
         <Button android:id="@+id/btnNext"
             android:layout_width="0dp"
             android:layout_weight="1"
             android:layout_height="wrap_content"
             android:text="Tiếp ▶"
-            android:backgroundTint="@color/lingua_blue"
+            android:backgroundTint="@color/brand_primary"
             android:textColor="@color/white"
             android:layout_marginStart="6dp"/>
         <Button android:id="@+id/btnSubmit"

@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 2.3 Redesign: Onboarding Choice Item — brand colors, surface_elevated bg -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/itemRoot"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
@@ -7,7 +9,7 @@
     android:gravity="center_vertical"
     android:padding="16dp"
     android:layout_marginBottom="12dp"
-    android:background="@drawable/edit_text_bg"
+    android:background="@drawable/bg_card_rounded"
     android:clickable="true"
     android:focusable="true">
 
@@ -30,14 +32,14 @@
             android:layout_height="wrap_content"
             android:textSize="16sp"
             android:textStyle="bold"
-            android:textColor="@color/lingua_dark"/>
+            android:textColor="@color/text_primary"/>
 
         <TextView
             android:id="@+id/tvSubtitle"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:textSize="13sp"
-            android:textColor="@color/lingua_gray"/>
+            android:textColor="@color/text_secondary"/>
     </LinearLayout>
 
     <TextView
@@ -46,6 +48,6 @@
         android:layout_height="wrap_content"
         android:text="✓"
         android:textSize="22sp"
-        android:textColor="@color/lingua_green"
+        android:textColor="@color/brand_primary"
         android:visibility="invisible"/>
 </LinearLayout>

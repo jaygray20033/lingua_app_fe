@@ -4,37 +4,77 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="@color/lingua_light">
+    android:background="@color/surface_background">
 
-    <com.google.android.material.tabs.TabLayout
-        android:id="@+id/tabLanguage"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:background="@color/white"
-        app:tabMode="fixed"
-        app:tabGravity="fill"
-        app:tabIndicatorColor="@color/lingua_green"
-        app:tabSelectedTextColor="@color/lingua_green"
-        app:tabTextColor="@color/lingua_gray"/>
-
+    <!-- Toolbar trắng -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:padding="12dp"
-        android:background="@color/white">
-        <Spinner android:id="@+id/spinnerLevel"
-            android:layout_width="0dp"
+        android:background="@color/surface_elevated"
+        android:orientation="vertical"
+        android:elevation="4dp">
+
+        <TextView
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="0.4"/>
-        <EditText android:id="@+id/etSearch"
-            android:layout_width="0dp"
+            android:text="📖 Ngữ pháp"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:textColor="@color/text_primary"
+            android:paddingStart="20dp"
+            android:paddingEnd="20dp"
+            android:paddingTop="16dp"
+            android:paddingBottom="4dp"/>
+
+        <!-- Language Tabs -->
+        <com.google.android.material.tabs.TabLayout
+            android:id="@+id/tabLanguage"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="0.6"
-            android:hint="@string/search_hint"
-            android:padding="8dp"
-            android:layout_marginStart="8dp"
-            android:background="@drawable/edit_text_bg"/>
+            android:background="@color/surface_elevated"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:paddingBottom="12dp"
+            android:paddingTop="8dp"
+            app:tabMode="scrollable"
+            app:tabGravity="start"
+            app:tabIndicatorColor="@color/brand_primary"
+            app:tabSelectedTextColor="@color/brand_primary"
+            app:tabTextColor="@color/text_label"
+            app:tabIndicatorHeight="3dp"/>
+
+        <!-- Level + Search row -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:paddingBottom="12dp"
+            android:gravity="center_vertical">
+
+            <Spinner android:id="@+id/spinnerLevel"
+                android:layout_width="0dp"
+                android:layout_height="40dp"
+                android:layout_weight="0.38"
+                android:background="@drawable/bg_tab_pill_unselected"
+                android:paddingStart="12dp"
+                android:paddingEnd="8dp"/>
+
+            <EditText android:id="@+id/etSearch"
+                android:layout_width="0dp"
+                android:layout_height="40dp"
+                android:layout_weight="0.62"
+                android:hint="@string/search_hint"
+                android:paddingStart="14dp"
+                android:paddingEnd="14dp"
+                android:paddingTop="0dp"
+                android:paddingBottom="0dp"
+                android:singleLine="true"
+                android:textSize="13sp"
+                android:layout_marginStart="8dp"
+                android:background="@drawable/bg_search_bar"/>
+        </LinearLayout>
     </LinearLayout>
 
     <ProgressBar android:id="@+id/progressBar"
@@ -49,7 +89,7 @@
         android:gravity="center"
         android:padding="32dp"
         android:text="Chưa có ngữ pháp"
-        android:textColor="@color/lingua_gray"
+        android:textColor="@color/text_secondary"
         android:visibility="gone"/>
 
     <androidx.recyclerview.widget.RecyclerView
@@ -57,5 +97,5 @@
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:padding="8dp"/>
+        android:padding="10dp"/>
 </LinearLayout>

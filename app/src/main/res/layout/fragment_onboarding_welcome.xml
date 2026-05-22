@@ -1,17 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 2.3 Redesign: Onboarding Welcome — brand_primary, surface_background -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:gravity="center"
     android:padding="24dp"
-    android:background="@color/lingua_light">
+    android:background="@color/surface_background">
 
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="🦉"
-        android:textSize="120sp"
+        android:text="🌍"
+        android:textSize="100sp"
         android:layout_marginBottom="24dp"/>
 
     <TextView
@@ -20,7 +21,7 @@
         android:text="Chào mừng đến với Lingua!"
         android:textSize="28sp"
         android:textStyle="bold"
-        android:textColor="@color/lingua_dark"
+        android:textColor="@color/text_primary"
         android:gravity="center"
         android:layout_marginBottom="16dp"/>
 
@@ -29,7 +30,7 @@
         android:layout_height="wrap_content"
         android:text="Học ngoại ngữ thông minh - vui vẻ - hiệu quả mỗi ngày."
         android:textSize="16sp"
-        android:textColor="@color/lingua_gray"
+        android:textColor="@color/text_secondary"
         android:gravity="center"
         android:layout_marginBottom="48dp"/>
 
@@ -41,5 +42,5 @@
         android:textSize="16sp"
         android:textStyle="bold"
         android:textColor="@android:color/white"
-        android:backgroundTint="@color/lingua_green"/>
+        android:backgroundTint="@color/brand_primary"/>
 </LinearLayout>

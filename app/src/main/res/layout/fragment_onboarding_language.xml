@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 2.3 Redesign: Onboarding Language — brand_primary buttons, surface_background -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:padding="24dp"
-    android:background="@color/lingua_light">
+    android:background="@color/surface_background">
 
     <TextView
         android:layout_width="match_parent"
@@ -12,7 +13,7 @@
         android:text="🌍 Bạn muốn học ngôn ngữ nào?"
         android:textSize="22sp"
         android:textStyle="bold"
-        android:textColor="@color/lingua_dark"
+        android:textColor="@color/text_primary"
         android:layout_marginTop="32dp"
         android:layout_marginBottom="8dp"/>
 
@@ -21,7 +22,7 @@
         android:layout_height="wrap_content"
         android:text="Chọn ngôn ngữ bạn muốn chinh phục đầu tiên."
         android:textSize="14sp"
-        android:textColor="@color/lingua_gray"
+        android:textColor="@color/text_secondary"
         android:layout_marginBottom="32dp"/>
 
     <androidx.recyclerview.widget.RecyclerView
@@ -31,9 +32,6 @@
         android:layout_weight="1"
         android:clipToPadding="false"/>
 
-    <!-- 6.1 FIX: thêm hàng nút Quay lại + Tiếp tục để user có thể quay lại
-         trang trước. Trước đây chỉ có Tiếp tục, chặn swipe khiến user không có
-         cách rõ ràng để sửa lựa chọn ở bước trước. -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -47,8 +45,8 @@
             android:layout_height="56dp"
             android:text="◀ Quay lại"
             android:textSize="14sp"
-            android:textColor="@color/lingua_green"
-            android:backgroundTint="@android:color/white"
+            android:textColor="@color/brand_primary"
+            android:backgroundTint="@color/surface_elevated"
             android:layout_marginEnd="8dp"/>
 
         <Button
@@ -60,7 +58,7 @@
             android:textSize="16sp"
             android:textStyle="bold"
             android:textColor="@android:color/white"
-            android:backgroundTint="@color/lingua_green"
+            android:backgroundTint="@color/brand_primary"
             android:enabled="false"/>
     </LinearLayout>
 </LinearLayout>

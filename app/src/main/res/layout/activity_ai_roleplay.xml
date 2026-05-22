@@ -1,35 +1,48 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 2.3 Redesign: AI Roleplay — surface_background, brand cards, 16dp corners -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="@color/lingua_light">
+    android:background="@color/surface_background">
 
     <!-- Config Panel -->
-    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:orientation="vertical" android:padding="12dp" android:background="@color/white">
+    <androidx.cardview.widget.CardView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_margin="12dp"
+        app:cardCornerRadius="16dp"
+        app:cardElevation="3dp"
+        app:cardBackgroundColor="@color/surface_elevated"
+        app:strokeColor="@color/card_border"
+        app:strokeWidth="1dp">
 
-        <Spinner android:id="@+id/spinnerLanguage" android:layout_width="match_parent"
-            android:layout_height="wrap_content" android:layout_marginBottom="8dp"/>
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="vertical" android:padding="16dp">
 
-        <Spinner android:id="@+id/spinnerScenario" android:layout_width="match_parent"
-            android:layout_height="wrap_content" android:layout_marginBottom="4dp"/>
+            <Spinner android:id="@+id/spinnerLanguage" android:layout_width="match_parent"
+                android:layout_height="wrap_content" android:layout_marginBottom="8dp"/>
 
-        <TextView android:id="@+id/tvScenarioDesc" android:layout_width="match_parent"
-            android:layout_height="wrap_content" android:textSize="13sp" android:textColor="@color/lingua_gray"
-            android:layout_marginBottom="8dp"/>
+            <Spinner android:id="@+id/spinnerScenario" android:layout_width="match_parent"
+                android:layout_height="wrap_content" android:layout_marginBottom="4dp"/>
 
-        <Button android:id="@+id/btnStartSession" android:layout_width="match_parent"
-            android:layout_height="48dp" android:text="🚀 BẮT ĐẦU HỘI THOẠI"
-            android:backgroundTint="@color/lingua_green" android:textColor="@color/white" android:textStyle="bold"/>
+            <TextView android:id="@+id/tvScenarioDesc" android:layout_width="match_parent"
+                android:layout_height="wrap_content" android:textSize="13sp" android:textColor="@color/text_secondary"
+                android:layout_marginBottom="12dp"/>
 
-        <ProgressBar android:id="@+id/progressBar" android:layout_width="wrap_content"
-            android:layout_height="wrap_content" android:visibility="gone" android:layout_gravity="center_horizontal"/>
-    </LinearLayout>
+            <Button android:id="@+id/btnStartSession" android:layout_width="match_parent"
+                android:layout_height="48dp" android:text="🚀 BẮT ĐẦU HỘI THOẠI"
+                android:backgroundTint="@color/brand_primary" android:textColor="@color/white" android:textStyle="bold"/>
+
+            <ProgressBar android:id="@+id/progressBar" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:visibility="gone" android:layout_gravity="center_horizontal"/>
+        </LinearLayout>
+    </androidx.cardview.widget.CardView>
 
     <TextView android:id="@+id/tvStatus" android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:textSize="13sp" android:textColor="@color/lingua_gray" android:padding="8dp"
-        android:gravity="center" android:text="Sélectionnez une langue et un scénario"/>
+        android:textSize="13sp" android:textColor="@color/text_secondary" android:padding="8dp"
+        android:gravity="center" android:text="Chọn ngôn ngữ và kịch bản"/>
 
     <!-- Chat messages -->
     <androidx.recyclerview.widget.RecyclerView android:id="@+id/recyclerMessages"
@@ -38,7 +51,7 @@
 
     <!-- Input -->
     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:orientation="horizontal" android:background="@color/white" android:padding="8dp"
+        android:orientation="horizontal" android:background="@color/surface_elevated" android:padding="10dp"
         android:elevation="8dp">
 
         <ImageButton android:id="@+id/btnMic" android:layout_width="48dp" android:layout_height="48dp"
@@ -47,8 +60,8 @@
             android:tint="@color/lingua_red" android:enabled="false"/>
 
         <EditText android:id="@+id/etMessage" android:layout_width="0dp" android:layout_height="wrap_content"
-            android:layout_weight="1" android:hint="Tapez votre message..."
-            android:background="@drawable/edit_text_bg" android:padding="10dp"
+            android:layout_weight="1" android:hint="Nhập tin nhắn..."
+            android:background="@drawable/bg_search_bar" android:padding="12dp"
             android:enabled="false" android:layout_marginHorizontal="8dp"/>
 
         <ImageButton android:id="@+id/btnSend" android:layout_width="48dp" android:layout_height="48dp"

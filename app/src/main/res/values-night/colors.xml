@@ -1,21 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    7.5 FIX: Override các semantic colors cho dark mode.
-    Các tên `surface_card`, `text_primary`,... được định nghĩa trong values/colors.xml
-    với giá trị light-mode; ở đây ta cung cấp giá trị tương ứng cho night-mode.
+    Dark mode override for semantic colors.
 -->
 <resources>
-    <color name="surface_card">#FF1E1E1E</color>
-    <color name="surface_card_pressed">#FF2A2A2A</color>
-    <color name="surface_screen">#FF121212</color>
-    <color name="text_primary">#FFEEEEEE</color>
-    <color name="text_secondary">#FFBBBBBB</color>
-    <color name="text_hint">#FF888888</color>
-    <color name="divider_line">#FF333333</color>
+    <color name="surface_card">#FF1E1E2E</color>
+    <color name="surface_card_pressed">#FF2A2A3E</color>
+    <color name="surface_screen">#FF0F0F1A</color>
+    <color name="text_primary">#FFF1F5F9</color>
+    <color name="text_secondary">#FFCBD5E1</color>
+    <color name="text_hint">#FF64748B</color>
+    <color name="divider_line">#FF334155</color>
 
-    <color name="row_highlight_me">#FF1A3A5A</color>
-    <color name="row_highlight_text">#FF82B1FF</color>
+    <color name="row_highlight_me">#FF1A1A3A</color>
+    <color name="row_highlight_text">#FF818CF8</color>
 
     <color name="onboarding_choice_selected">#FF2E5A1F</color>
-    <color name="onboarding_choice_default">#FF1E1E1E</color>
+    <color name="onboarding_choice_default">#FF1E1E2E</color>
+
+    <color name="surface_background">#FF0F0F1A</color>
+    <color name="surface_elevated">#FF1E1E2E</color>
+    <color name="card_border">#FF334155</color>
 </resources>

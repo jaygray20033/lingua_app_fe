@@ -4,61 +4,101 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="@color/lingua_light">
+    android:background="@color/surface_background">
 
-    <!-- Language Tabs -->
-    <com.google.android.material.tabs.TabLayout
-        android:id="@+id/tabLanguage"
+    <!-- Toolbar trắng với tên trang -->
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="@color/white"
-        app:tabMode="fixed"
-        app:tabGravity="fill"
-        app:tabIndicatorColor="@color/lingua_green"
-        app:tabSelectedTextColor="@color/lingua_green"
-        app:tabTextColor="@color/lingua_gray"/>
-
-    <!-- Level spinner + search -->
-    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:orientation="horizontal" android:padding="12dp" android:background="@color/white"
-        android:gravity="center_vertical"
+        android:background="@color/surface_elevated"
+        android:orientation="vertical"
         android:elevation="4dp">
 
-        <Spinner android:id="@+id/spinnerLevel"
-            android:layout_width="0dp"
+        <TextView
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="0.4"/>
+            android:text="📚 Từ vựng"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:textColor="@color/text_primary"
+            android:paddingStart="20dp"
+            android:paddingEnd="20dp"
+            android:paddingTop="16dp"
+            android:paddingBottom="4dp"/>
 
-        <FrameLayout
-            android:layout_width="0dp"
+        <!-- Language Tabs — pill style -->
+        <com.google.android.material.tabs.TabLayout
+            android:id="@+id/tabLanguage"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="0.6"
-            android:layout_marginStart="8dp">
+            android:background="@color/surface_elevated"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:paddingBottom="12dp"
+            android:paddingTop="8dp"
+            app:tabMode="scrollable"
+            app:tabGravity="start"
+            app:tabIndicatorColor="@color/brand_primary"
+            app:tabSelectedTextColor="@color/brand_primary"
+            app:tabTextColor="@color/text_label"
+            app:tabIndicatorHeight="3dp"
+            app:tabBackground="@android:color/transparent"/>
 
-            <EditText android:id="@+id/etSearch"
-                android:layout_width="match_parent"
+        <!-- Level tabs + search bar -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:paddingBottom="12dp"
+            android:gravity="center_vertical">
+
+            <Spinner android:id="@+id/spinnerLevel"
+                android:layout_width="0dp"
+                android:layout_height="40dp"
+                android:layout_weight="0.38"
+                android:background="@drawable/bg_tab_pill_unselected"
+                android:paddingStart="12dp"
+                android:paddingEnd="8dp"/>
+
+            <FrameLayout
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:hint="@string/search_hint"
-                android:padding="8dp"
-                android:paddingEnd="36dp"
-                android:background="@drawable/edit_text_bg"/>
+                android:layout_weight="0.62"
+                android:layout_marginStart="8dp">
 
-            <!-- 6.6 FIX: nút clear (X) bên trong EditText. Visible khi etSearch
-                 có text, ẩn khi trống. Xử lý trong VocabularyActivity. -->
-            <ImageButton android:id="@+id/btnClearSearch"
-                android:layout_width="32dp"
-                android:layout_height="32dp"
-                android:layout_gravity="end|center_vertical"
-                android:src="@android:drawable/ic_menu_close_clear_cancel"
-                android:background="@android:color/transparent"
-                android:visibility="gone"
-                android:contentDescription="Xoá tìm kiếm"/>
-        </FrameLayout>
+                <EditText android:id="@+id/etSearch"
+                    android:layout_width="match_parent"
+                    android:layout_height="40dp"
+                    android:hint="@string/search_hint"
+                    android:paddingStart="14dp"
+                    android:paddingEnd="40dp"
+                    android:paddingTop="0dp"
+                    android:paddingBottom="0dp"
+                    android:background="@drawable/bg_search_bar"
+                    android:textSize="13sp"
+                    android:singleLine="true"/>
+
+                <ImageButton android:id="@+id/btnClearSearch"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:layout_gravity="end|center_vertical"
+                    android:layout_marginEnd="4dp"
+                    android:src="@android:drawable/ic_menu_close_clear_cancel"
+                    android:background="@android:color/transparent"
+                    android:visibility="gone"
+                    android:contentDescription="Xoá tìm kiếm"/>
+            </FrameLayout>
+        </LinearLayout>
     </LinearLayout>
 
-    <ProgressBar android:id="@+id/progressBar" android:layout_width="wrap_content"
-        android:layout_height="wrap_content" android:layout_gravity="center"
-        android:layout_marginTop="16dp" android:visibility="gone"/>
+    <ProgressBar android:id="@+id/progressBar"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:layout_marginTop="16dp"
+        android:visibility="gone"/>
 
     <TextView android:id="@+id/tvEmpty"
         android:layout_width="match_parent"
@@ -67,10 +107,8 @@
         android:gravity="center"
         android:padding="32dp"
         android:visibility="gone"
-        android:textColor="@color/lingua_gray"/>
+        android:textColor="@color/text_secondary"/>
 
-    <!-- 6.6 FIX: bọc RecyclerView trong FrameLayout để FAB scroll-to-top
-         nằm overlay góc dưới phải. -->
     <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
@@ -80,10 +118,9 @@
             android:id="@+id/recyclerView"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:padding="8dp"
+            android:padding="10dp"
             app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"/>
 
-        <!-- 6.6 FIX: FAB scroll-to-top, hiển thị khi list cuộn xuống > 5 items. -->
         <com.google.android.material.floatingactionbutton.FloatingActionButton
             android:id="@+id/fabScrollTop"
             android:layout_width="wrap_content"
@@ -93,7 +130,7 @@
             android:src="@android:drawable/arrow_up_float"
             android:contentDescription="Về đầu trang"
             android:visibility="gone"
-            app:backgroundTint="@color/lingua_green"
+            app:backgroundTint="@color/brand_primary"
             app:tint="@color/white"/>
     </FrameLayout>
 </LinearLayout>
