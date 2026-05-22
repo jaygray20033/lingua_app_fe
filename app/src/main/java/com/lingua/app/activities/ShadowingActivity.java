@@ -52,6 +52,7 @@ public class ShadowingActivity extends AppCompatActivity implements TextToSpeech
     private SpeechRecognizer speechRecognizer;
     private String recordingFilePath;
     private boolean isRecording = false;
+    private boolean isPlayingAudio = false;
 
     private final List<ExampleSentence> contents = new ArrayList<>();
     private int currentContentIndex = 0;
@@ -89,7 +90,13 @@ public class ShadowingActivity extends AppCompatActivity implements TextToSpeech
 
         btnPlay.setOnClickListener(v -> playAudio());
         btnRecord.setOnClickListener(v -> startRecording());
-        btnStop.setOnClickListener(v -> stopRecordingAndAnalyze());
+        btnStop.setOnClickListener(v -> {
+            if (isPlayingAudio) {
+                stopAudio();
+            } else if (isRecording) {
+                stopRecordingAndAnalyze();
+            }
+        });
 
         btnNextContent = findViewById(R.id.btnNextContent);
         btnPrev = findViewById(R.id.btnPrev);
@@ -221,6 +228,8 @@ public class ShadowingActivity extends AppCompatActivity implements TextToSpeech
 
     private void showContent(int index) {
         if (index < 0 || index >= contents.size()) return;
+        // Stop any audio playing from previous sentence
+        stopAudio();
         currentContentIndex = index;
         ExampleSentence ex = contents.get(index);
         // FIX: use getter methods that check both field names (languageCode / langCode / levelCode)
@@ -255,6 +264,27 @@ public class ShadowingActivity extends AppCompatActivity implements TextToSpeech
     }
 
     /**
+     * Dừng audio đang phát (MediaPlayer hoặc TTS).
+     * Gọi khi user nhấn ⏹ trong khi đang nghe, hoặc khi chuyển câu.
+     */
+    private void stopAudio() {
+        isPlayingAudio = false;
+        if (mediaPlayer != null) {
+            try {
+                if (mediaPlayer.isPlaying()) mediaPlayer.stop();
+                mediaPlayer.release();
+            } catch (Exception ignore) {}
+            mediaPlayer = null;
+        }
+        if (tts != null) {
+            try { tts.stop(); } catch (Exception ignore) {}
+        }
+        if (btnStop != null) btnStop.setVisibility(View.GONE);
+        if (btnPlay != null) btnPlay.setEnabled(true);
+        if (tvStatus != null) tvStatus.setText("Nhấn ▶ để nghe, rồi 🎙 để ghi âm");
+    }
+
+    /**
      * Plays the original sentence's audio.
      * Prefers MediaPlayer (audioUrl), falls back to TTS.
      */
@@ -283,9 +313,20 @@ public class ShadowingActivity extends AppCompatActivity implements TextToSpeech
                 mediaPlayer.prepareAsync();
                 mediaPlayer.setOnPreparedListener(mp -> {
                     mp.start();
-                    tvStatus.setText("🔊 Đang phát audio gốc...");
+                    isPlayingAudio = true;
+                    if (btnStop != null) {
+                        btnStop.setVisibility(View.VISIBLE);
+                        btnStop.setEnabled(true);
+                    }
+                    if (btnPlay != null) btnPlay.setEnabled(false);
+                    tvStatus.setText("🔊 Đang phát audio... Nhấn ⏹ để dừng");
                 });
-                mediaPlayer.setOnCompletionListener(mp -> tvStatus.setText("Đã phát xong. Hãy ghi âm theo!"));
+                mediaPlayer.setOnCompletionListener(mp -> {
+                    isPlayingAudio = false;
+                    if (btnStop != null) btnStop.setVisibility(View.GONE);
+                    if (btnPlay != null) btnPlay.setEnabled(true);
+                    tvStatus.setText("✅ Đã phát xong. Hãy ghi âm theo!");
+                });
                 return;
             } catch (Exception e) {
                 // FIX 2.1: catch any exception from setDataSource/prepareAsync
@@ -301,8 +342,33 @@ public class ShadowingActivity extends AppCompatActivity implements TextToSpeech
         if (tts == null) return;
         Locale locale = bcpToLocale(ex.getLanguageCode());
         tts.setLanguage(locale);
-        tts.speak(ex.getSentence(), TextToSpeech.QUEUE_FLUSH, null, "shadowing");
-        tvStatus.setText("🔊 Đang nghe (TTS)...");
+        isPlayingAudio = true;
+        if (btnStop != null) {
+            btnStop.setVisibility(View.VISIBLE);
+            btnStop.setEnabled(true);
+        }
+        if (btnPlay != null) btnPlay.setEnabled(false);
+        // TTS completion callback via utterance progress listener
+        tts.setOnUtteranceProgressListener(new android.speech.tts.UtteranceProgressListener() {
+            @Override public void onStart(String utteranceId) {}
+            @Override public void onDone(String utteranceId) {
+                runOnUiThread(() -> {
+                    isPlayingAudio = false;
+                    if (btnStop != null) btnStop.setVisibility(View.GONE);
+                    if (btnPlay != null) btnPlay.setEnabled(true);
+                    tvStatus.setText("✅ Đã phát xong. Hãy ghi âm theo!");
+                });
+            }
+            @Override public void onError(String utteranceId) {
+                runOnUiThread(() -> {
+                    isPlayingAudio = false;
+                    if (btnStop != null) btnStop.setVisibility(View.GONE);
+                    if (btnPlay != null) btnPlay.setEnabled(true);
+                });
+            }
+        });
+        tts.speak(ex.getSentence(), TextToSpeech.QUEUE_FLUSH, null, "shadowing_tts");
+        tvStatus.setText("🔊 Đang nghe (TTS)... Nhấn ⏹ để dừng");
     }
 
     private Locale bcpToLocale(String langCode) {
@@ -579,6 +645,9 @@ public class ShadowingActivity extends AppCompatActivity implements TextToSpeech
         super.onPause();
         // Nếu đang ghi âm mà user rời màn hình → abort hẳn thay vì để recorder
         // tiếp tục chạy nền (chiếm micro, ngốn pin).
+        if (isPlayingAudio) {
+            stopAudio();
+        }
         if (isRecording) {
             abortRecording();
         }

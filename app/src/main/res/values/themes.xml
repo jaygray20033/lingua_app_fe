@@ -46,6 +46,9 @@
         <item name="cornerSize">16dp</item>
     </style>
 
+    <!-- ===== Base Widget style ===== -->
+    <style name="Widget.Lingua" parent="android:Widget" />
+
     <!-- ===== Card style chung ===== -->
     <style name="Widget.Lingua.Card" parent="Widget.MaterialComponents.CardView">
         <item name="cardCornerRadius">16dp</item>
@@ -127,37 +130,28 @@
     </style>
 
     <!-- Badge styles -->
-    <style name="Widget.Lingua.Badge.JLPT">
+    <style name="Widget.Lingua.Badge">
+        <item name="android:textSize">11sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:paddingStart">8dp</item>
+        <item name="android:paddingEnd">8dp</item>
+        <item name="android:paddingTop">3dp</item>
+        <item name="android:paddingBottom">3dp</item>
+    </style>
+
+    <style name="Widget.Lingua.Badge.JLPT" parent="Widget.Lingua.Badge">
         <item name="android:background">@drawable/bg_badge_jlpt</item>
         <item name="android:textColor">@color/badge_jlpt</item>
-        <item name="android:textSize">11sp</item>
-        <item name="android:textStyle">bold</item>
-        <item name="android:paddingStart">8dp</item>
-        <item name="android:paddingEnd">8dp</item>
-        <item name="android:paddingTop">3dp</item>
-        <item name="android:paddingBottom">3dp</item>
     </style>
 
-    <style name="Widget.Lingua.Badge.HSK">
+    <style name="Widget.Lingua.Badge.HSK" parent="Widget.Lingua.Badge">
         <item name="android:background">@drawable/bg_badge_hsk</item>
         <item name="android:textColor">@color/badge_hsk</item>
-        <item name="android:textSize">11sp</item>
-        <item name="android:textStyle">bold</item>
-        <item name="android:paddingStart">8dp</item>
-        <item name="android:paddingEnd">8dp</item>
-        <item name="android:paddingTop">3dp</item>
-        <item name="android:paddingBottom">3dp</item>
     </style>
 
-    <style name="Widget.Lingua.Badge.CEFR">
+    <style name="Widget.Lingua.Badge.CEFR" parent="Widget.Lingua.Badge">
         <item name="android:background">@drawable/bg_badge_cefr</item>
         <item name="android:textColor">@color/badge_cefr</item>
-        <item name="android:textSize">11sp</item>
-        <item name="android:textStyle">bold</item>
-        <item name="android:paddingStart">8dp</item>
-        <item name="android:paddingEnd">8dp</item>
-        <item name="android:paddingTop">3dp</item>
-        <item name="android:paddingBottom">3dp</item>
     </style>
 
 </resources>

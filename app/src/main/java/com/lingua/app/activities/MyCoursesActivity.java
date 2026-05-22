@@ -9,6 +9,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import com.lingua.app.R;
+import com.lingua.app.adapters.CourseCatalogAdapter;
 import com.lingua.app.adapters.EnrollmentAdapter;
 import com.lingua.app.api.ApiClient;
 import com.lingua.app.api.LinguaApiService;
@@ -82,7 +83,13 @@ public class MyCoursesActivity extends AppCompatActivity {
                 progressBar.setVisibility(View.GONE);
                 List<Course> data = r.isSuccessful() && r.body() != null ? r.body().getData() : null;
                 List<Course> list = data != null ? data : new ArrayList<>();
-                recyclerView.setAdapter(new CourseAdapter(list));
+                // 2.3 Redesign: dùng CourseCatalogAdapter với item_course_card layout
+                CourseCatalogAdapter adapter = new CourseCatalogAdapter(list, course -> {
+                    Intent i = new Intent(MyCoursesActivity.this, CourseDetailActivity.class);
+                    i.putExtra("courseId", course.id);
+                    startActivity(i);
+                });
+                recyclerView.setAdapter(adapter);
                 tvEmpty.setVisibility(list.isEmpty() ? View.VISIBLE : View.GONE);
             }
             @Override public void onFailure(Call<ApiResponse<List<Course>>> c, Throwable t) {
@@ -90,69 +97,5 @@ public class MyCoursesActivity extends AppCompatActivity {
                 tvEmpty.setVisibility(View.VISIBLE);
             }
         });
-    }
-
-    /** Inline simple adapter for course catalog. */
-    private class CourseAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
-        private final List<Course> items;
-        CourseAdapter(List<Course> items) { this.items = items; }
-
-        @Override public RecyclerView.ViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
-            LinearLayout root = new LinearLayout(parent.getContext());
-            root.setOrientation(LinearLayout.VERTICAL);
-            int pad = (int) (14 * getResources().getDisplayMetrics().density);
-            root.setPadding(pad, pad, pad, pad);
-            // 7.5 FIX: dung mau dark-mode aware
-            root.setBackgroundColor(androidx.core.content.ContextCompat.getColor(
-                    parent.getContext(), R.color.surface_card));
-            ViewGroup.MarginLayoutParams lp = new ViewGroup.MarginLayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-            int m = (int) (4 * getResources().getDisplayMetrics().density);
-            lp.setMargins(m, m, m, m);
-            root.setLayoutParams(lp);
-
-            TextView t = new TextView(parent.getContext());
-            t.setId(android.R.id.text1);
-            t.setTextSize(17);
-            // 7.5 FIX: dark-mode aware text colors
-            t.setTextColor(androidx.core.content.ContextCompat.getColor(
-                    parent.getContext(), R.color.text_primary));
-            t.setTypeface(t.getTypeface(), android.graphics.Typeface.BOLD);
-            root.addView(t);
-
-            TextView s = new TextView(parent.getContext());
-            s.setId(android.R.id.text2);
-            s.setTextSize(13);
-            s.setTextColor(androidx.core.content.ContextCompat.getColor(
-                    parent.getContext(), R.color.text_hint));
-            root.addView(s);
-
-            return new RecyclerView.ViewHolder(root) {};
-        }
-
-        @Override public void onBindViewHolder(RecyclerView.ViewHolder h, int pos) {
-            Course c = items.get(pos);
-            ((TextView) h.itemView.findViewById(android.R.id.text1)).setText(
-                    (c.flagEmoji != null ? c.flagEmoji + "  " : "") + c.title);
-            StringBuilder sub = new StringBuilder();
-            if (c.levelCode != null) sub.append(c.levelCode);
-            if (c.totalLessons > 0) {
-                if (sub.length() > 0) sub.append("  ·  ");
-                sub.append(c.totalLessons).append(" bài");
-            }
-            if (c.isEnrolled == 1) {
-                if (sub.length() > 0) sub.append("  ·  ");
-                sub.append("✅ Đã ghi danh");
-            }
-            ((TextView) h.itemView.findViewById(android.R.id.text2)).setText(sub.toString());
-
-            h.itemView.setOnClickListener(v -> {
-                Intent i = new Intent(MyCoursesActivity.this, CourseDetailActivity.class);
-                i.putExtra("courseId", c.id);
-                startActivity(i);
-            });
-        }
-
-        @Override public int getItemCount() { return items.size(); }
     }
 }
